@@ -1,0 +1,144 @@
+:root {
+  color-scheme: light;
+  --font-ui: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Newsreader Variable', Newsreader, Georgia, 'Times New Roman', serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --bg: #f4f2ec;
+  --bg-deep: #ebe8e0;
+  --surface: #ffffff;
+  --surface-2: #f7f5f0;
+  --surface-3: #efece5;
+  --border: #e2ded4;
+  --border-strong: #cfc9bc;
+  --text: #1e1c19;
+  --text-2: #55514a;
+  --muted: #7d786f;
+  --faint: #a8a398;
+
+  --accent: #2c6b70;
+  --accent-hover: #235659;
+  --accent-soft: #dceceb;
+  --accent-text: #ffffff;
+  --accent-ink: #1f4f52;
+
+  --strength: #2e7d4f;
+  --strength-soft: #d9f0e1;
+  --strength-hl: rgba(60, 170, 100, 0.32);
+  --weakness: #c2413f;
+  --weakness-soft: #fbe0dd;
+  --weakness-hl: rgba(225, 80, 70, 0.3);
+  --question: #b26f14;
+  --question-soft: #fdefd3;
+  --question-hl: rgba(240, 170, 40, 0.38);
+  --note: #4a6aa5;
+  --note-soft: #e0e8f7;
+  --note-hl: rgba(90, 130, 220, 0.3);
+  --search-hl: rgba(250, 200, 40, 0.55);
+
+  --success: #2e7d4f;
+  --danger: #c2413f;
+  --warning: #b26f14;
+
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+  --shadow-s: 0 1px 2px rgba(20, 18, 14, 0.06), 0 1px 1px rgba(20, 18, 14, 0.04);
+  --shadow-m: 0 4px 14px rgba(20, 18, 14, 0.1), 0 1px 3px rgba(20, 18, 14, 0.06);
+  --shadow-l: 0 18px 50px rgba(20, 18, 14, 0.18), 0 4px 12px rgba(20, 18, 14, 0.08);
+  --ring: 0 0 0 3px rgba(44, 107, 112, 0.28);
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 140ms;
+  --t-med: 220ms;
+
+  --topbar-h: 54px;
+  --nav-w: 272px;
+  --panel-w: 440px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #171716;
+  --bg-deep: #111110;
+  --surface: #1f1f1d;
+  --surface-2: #262624;
+  --surface-3: #2d2d2a;
+  --border: #33332f;
+  --border-strong: #46453f;
+  --text: #ebe8e1;
+  --text-2: #b9b4aa;
+  --muted: #8f8a80;
+  --faint: #66625a;
+
+  --accent: #7cc4c6;
+  --accent-hover: #93d4d6;
+  --accent-soft: #1f3a3b;
+  --accent-text: #0f2223;
+  --accent-ink: #a9dcdd;
+
+  --strength: #6fcf97;
+  --strength-soft: #1b3326;
+  --strength-hl: rgba(90, 200, 130, 0.35);
+  --weakness: #f08a86;
+  --weakness-soft: #3d2120;
+  --weakness-hl: rgba(240, 110, 100, 0.35);
+  --question: #f2b85a;
+  --question-soft: #3c2e14;
+  --question-hl: rgba(245, 180, 60, 0.38);
+  --note: #8fb0ee;
+  --note-soft: #1f2a40;
+  --note-hl: rgba(120, 160, 240, 0.35);
+  --search-hl: rgba(250, 210, 60, 0.5);
+
+  --success: #6fcf97;
+  --danger: #f08a86;
+  --warning: #f2b85a;
+
+  --shadow-s: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-m: 0 4px 14px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-l: 0 18px 50px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --ring: 0 0 0 3px rgba(124, 196, 198, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #171716;
+    --bg-deep: #111110;
+    --surface: #1f1f1d;
+    --surface-2: #262624;
+    --surface-3: #2d2d2a;
+    --border: #33332f;
+    --border-strong: #46453f;
+    --text: #ebe8e1;
+    --text-2: #b9b4aa;
+    --muted: #8f8a80;
+    --faint: #66625a;
+    --accent: #7cc4c6;
+    --accent-hover: #93d4d6;
+    --accent-soft: #1f3a3b;
+    --accent-text: #0f2223;
+    --accent-ink: #a9dcdd;
+    --strength: #6fcf97;
+    --strength-soft: #1b3326;
+    --strength-hl: rgba(90, 200, 130, 0.35);
+    --weakness: #f08a86;
+    --weakness-soft: #3d2120;
+    --weakness-hl: rgba(240, 110, 100, 0.35);
+    --question: #f2b85a;
+    --question-soft: #3c2e14;
+    --question-hl: rgba(245, 180, 60, 0.38);
+    --note: #8fb0ee;
+    --note-soft: #1f2a40;
+    --note-hl: rgba(120, 160, 240, 0.35);
+    --search-hl: rgba(250, 210, 60, 0.5);
+    --success: #6fcf97;
+    --danger: #f08a86;
+    --warning: #f2b85a;
+    --shadow-s: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-m: 0 4px 14px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-l: 0 18px 50px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+    --ring: 0 0 0 3px rgba(124, 196, 198, 0.35);
+  }
+}
