@@ -1550,6 +1550,204 @@ button.chip:hover {
   border: 1px solid var(--border-strong);
 }
 
+/* scorecard */
+.scorecard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sc-row {
+  display: grid;
+  grid-template-columns: 26px 1fr auto auto;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 6px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-s);
+  text-align: left;
+  color: var(--text);
+}
+.sc-row:hover {
+  background: var(--surface-3);
+}
+.sc-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.sc-name {
+  font-size: 13px;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sc-score {
+  font-size: 11.5px;
+  color: var(--text-2);
+  text-align: right;
+  white-space: nowrap;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sc-score em {
+  color: var(--faint);
+  font-style: italic;
+}
+.sc-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.sc-pill {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.sc-strength {
+  background: var(--strength);
+}
+.sc-weakness {
+  background: var(--weakness);
+}
+.sc-question {
+  background: var(--question);
+}
+.sc-noev {
+  font-size: 10.5px;
+  color: var(--faint);
+  font-style: italic;
+}
+
+/* submit check */
+.submit-check {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sc-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sc-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--radius-s);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.sc-item svg {
+  flex-shrink: 0;
+}
+.sc-item span {
+  flex: 1;
+}
+.sc-item.is-blocker {
+  background: var(--weakness-soft);
+  color: color-mix(in srgb, var(--weakness) 75%, var(--text));
+}
+.sc-item.is-suggestion {
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.sc-jump {
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.6;
+  padding: 2px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+}
+.sc-jump:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+.sc-foot {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.submit-ready {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 4px 2px;
+  color: var(--success);
+}
+.submit-ready svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.submit-ready strong {
+  font-size: 13.5px;
+}
+.submit-ready p {
+  color: var(--text-2);
+  font-size: 12.5px;
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+/* completion celebration */
+.celebrate {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 220;
+  overflow: hidden;
+}
+.confetti {
+  position: absolute;
+  top: -12px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0.9;
+  animation: fall var(--dur, 2.6s) var(--ease) forwards;
+  animation-delay: var(--delay, 0s);
+}
+@keyframes fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateY(102vh) rotate(720deg);
+    opacity: 0.9;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .celebrate {
+    display: none;
+  }
+}
+
 /* notes */
 .notes {
   display: flex;

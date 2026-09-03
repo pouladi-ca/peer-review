@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, Compass, Sparkles, Target } from 'lucide-react';
+import { ChevronDown, Compass, Gauge, Sparkles, Target } from 'lucide-react';
 import { useStore, selectActiveDoc } from '../../lib/store';
 import { getFramework } from '../../lib/frameworks';
 import { computeProgress } from '../../lib/progress';
 import { plural } from '../../lib/format';
 import type { QuickFacts } from '../../lib/types';
 import { ProgressRing } from '../ui';
+import { Scorecard } from '../Scorecard';
 
 const FIELDS: { key: keyof QuickFacts; label: string }[] = [
   { key: 'title', label: 'Title' },
@@ -53,6 +54,19 @@ export function BriefPanel() {
           <div className="progress-bar">
             <span style={{ width: `${Math.round(doc.progress * 100)}%` }} />
           </div>
+        </section>
+      )}
+
+      {review.annotations.length + Object.keys(review.scores).length > 0 && (
+        <section className="card">
+          <div className="card-title">
+            <Gauge size={14} /> Scorecard
+            <button type="button" className="link" onClick={() => useStore.getState().setTab('score')}>
+              Open Score
+            </button>
+          </div>
+          <p className="card-hint">Where the review stands. Click a criterion to jump to it.</p>
+          <Scorecard />
         </section>
       )}
 

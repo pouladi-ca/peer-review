@@ -89,6 +89,28 @@ test('scoring a criterion and checking the draft preview', async ({ page }) => {
   await page.screenshot({ path: path.join(shots, '06-draft.png'), fullPage: false });
 });
 
+test('scorecard and submit-readiness reflect progress', async ({ page }) => {
+  await startWithSample(page);
+  // Score two criteria so the scorecard has content.
+  await page.locator('.panel-tab', { hasText: 'Score' }).click();
+  const crits = page.locator('.criterion');
+  await crits.nth(0).locator('.score-btn', { hasText: '2' }).click();
+  await crits.nth(0).locator('.ta').first().fill('Strong significance and a clear premise for the work.');
+
+  // The Brief scorecard now shows a row with the score swatch.
+  await page.locator('.panel-tab', { hasText: 'Brief' }).click();
+  await expect(page.locator('.scorecard .sc-row').first()).toBeVisible();
+  await expect(page.locator('.scorecard .sc-swatch').first()).toHaveText('2');
+  await page.screenshot({ path: path.join(shots, '10-scorecard.png') });
+
+  // The Draft "before you submit" panel lists blockers with jump buttons.
+  await page.locator('.panel-tab', { hasText: 'Draft' }).click();
+  await expect(page.locator('.submit-check .sc-item.is-blocker').first()).toBeVisible();
+  const before = await page.locator('.submit-check .sc-item.is-blocker').count();
+  expect(before).toBeGreaterThan(0);
+  await page.screenshot({ path: path.join(shots, '11-submit-check.png') });
+});
+
 test('checklist finds evidence in the sample', async ({ page }) => {
   await startWithSample(page);
   await page.locator('.panel-tab', { hasText: 'Checklist' }).click();

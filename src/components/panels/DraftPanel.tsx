@@ -7,6 +7,7 @@ import { copyText, downloadBlob, downloadText, safeFilename } from '../../lib/ex
 import { draftToDocx } from '../../lib/export/docx';
 import { createBackup } from '../../lib/export/backup';
 import { AutoTextarea } from '../ui';
+import { SubmitCheck } from '../Scorecard';
 
 export function DraftPanel() {
   const review = useStore((s) => s.review)!;
@@ -44,6 +45,11 @@ export function DraftPanel() {
 
   return (
     <div className="draft">
+      <section className="card">
+        <div className="card-title">Before you submit</div>
+        <SubmitCheck />
+      </section>
+
       <section className="card">
         <div className="card-title">
           Summary of the application

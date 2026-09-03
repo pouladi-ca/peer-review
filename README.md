@@ -43,6 +43,11 @@ mechanical weight off that process so your attention stays on the science.
   more) show page references to where the application seems to address each item,
   so you verify rather than hunt. It includes reviewer self-checks such as
   conflict of interest.
+- **Shows where you stand.** A live scorecard summarises every criterion, its
+  score, and its evidence at a glance, and a *Before you submit* check lists the
+  blockers that remain and the thoroughness nudges that make for a balanced,
+  constructive critique (an unbalanced criterion, a major weakness with no
+  suggested fix, an unconfirmed conflict of interest).
 - **Writes the review.** Scores, rationale, and tagged evidence assemble into a
   structured critique with a preview, exportable as **Word (.docx)**,
   **Markdown**, plain text, or **print/PDF**. Confidential comments to the

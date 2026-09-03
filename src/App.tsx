@@ -6,6 +6,7 @@ import { Workspace } from './components/Workspace';
 import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { Toast, BusyOverlay } from './components/Overlays';
+import { Celebrate } from './components/Celebrate';
 
 export default function App() {
   const booted = useStore((s) => s.booted);
@@ -24,6 +25,7 @@ export default function App() {
       <CommandPalette />
       <ShortcutsHelp />
       <BusyOverlay />
+      <Celebrate />
       <Toast />
     </>
   );
