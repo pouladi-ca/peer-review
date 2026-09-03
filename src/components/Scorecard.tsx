@@ -1,6 +1,6 @@
 import { AlertCircle, ArrowRight, CheckCircle2, Circle, Lightbulb } from 'lucide-react';
 import { useStore } from '../lib/store';
-import { getFramework } from '../lib/frameworks';
+import { criterionScale, getFramework } from '../lib/frameworks';
 import { computeReadiness, type ScorecardRow } from '../lib/readiness';
 import { useMemo } from 'react';
 
@@ -24,18 +24,22 @@ export function Scorecard() {
 
   return (
     <div className="scorecard">
-      {readiness.rows.map((row) => (
-        <button key={row.id} type="button" className="sc-row" onClick={() => go(row.id)} title={`Go to ${row.short}`}>
-          <span className="sc-swatch" style={{ background: swatch(row.goodness) }}>
-            {row.scored ? (fw.criterionScale.kind === 'numeric' || fw.criteria.find((c) => c.id === row.id)?.scale?.kind === 'numeric' ? String(row.scoreValue) : '') : ''}
-          </span>
-          <span className="sc-name">{row.short}</span>
-          <span className="sc-score">{row.scored ? row.scoreText.replace(/^[\d.]+\s*/, '') || 'Rated' : <em>Not scored</em>}</span>
-          <span className="sc-dots">
-            <Dots row={row} />
-          </span>
-        </button>
-      ))}
+      {readiness.rows.map((row) => {
+        const criterion = fw.criteria.find((c) => c.id === row.id);
+        const numeric = criterion ? criterionScale(fw, criterion).kind === 'numeric' : false;
+        return (
+          <button key={row.id} type="button" className="sc-row" onClick={() => go(row.id)} title={`Go to ${row.short}`}>
+            <span className="sc-swatch" style={{ background: swatch(row.goodness) }} aria-hidden>
+              {row.scored && numeric ? String(row.scoreValue) : ''}
+            </span>
+            <span className="sc-name">{row.short}</span>
+            <span className="sc-score">{row.scored ? row.scoreText.replace(/^[\d.]+\s*/, '') || 'Rated' : <em>Not scored</em>}</span>
+            <span className="sc-dots">
+              <Dots row={row} />
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
