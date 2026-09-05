@@ -585,6 +585,9 @@ button.chip:hover {
   flex-direction: column;
   overflow: hidden;
 }
+/* The navigator and panel are removed from the DOM when hidden, so the grid
+   must declare only the columns that are actually present; otherwise the
+   viewer is auto-placed into a zero-width column. */
 .ws-body {
   flex: 1;
   display: grid;
@@ -592,10 +595,10 @@ button.chip:hover {
   min-height: 0;
 }
 .ws.nav-closed .ws-body {
-  grid-template-columns: 0 minmax(0, 1fr) var(--panel-w);
+  grid-template-columns: minmax(0, 1fr) var(--panel-w);
 }
 .ws.is-focus .ws-body {
-  grid-template-columns: 0 1fr 0;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* ---------- topbar ---------- */

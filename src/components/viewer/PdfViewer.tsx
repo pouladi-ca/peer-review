@@ -13,6 +13,8 @@ import { isTyping } from '../../hooks/useGlobal';
 
 const GAP = 18;
 const PAD = 24;
+/** Pages never fit wider than this at 100%, so focus mode on a wide screen stays readable. */
+const MAX_FIT = 1100;
 
 export function PdfViewer() {
   const doc = useStore(selectActiveDoc);
@@ -40,7 +42,7 @@ export function PdfViewer() {
   // Layout: fit every page to the container width individually, then apply
   // zoom. Applications often mix portrait pages with landscape budget tables or
   // Gantt charts; per-page fitting keeps each readable at its natural width.
-  const fitW = Math.max(120, containerW - PAD * 2);
+  const fitW = Math.min(MAX_FIT, Math.max(120, containerW - PAD * 2));
   const layout = useMemo(() => {
     let top = PAD;
     return dims.map((d) => {

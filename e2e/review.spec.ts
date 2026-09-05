@@ -92,6 +92,27 @@ test('pressing a tag key with nothing selected shows a hint', async ({ page }) =
   await expect(page.locator('.toast')).toContainText(/Select a passage/);
 });
 
+test('focus mode and a hidden navigator keep the document visible', async ({ page }) => {
+  await startWithSample(page);
+  const viewerWidth = () => page.locator('.viewer').evaluate((el) => el.getBoundingClientRect().width);
+  const canvasWidth = () => page.locator('.pdf-canvas').first().evaluate((el) => el.getBoundingClientRect().width);
+  const full = await viewerWidth();
+  // Hide the navigator: the viewer should widen, not collapse.
+  await page.keyboard.press('\\');
+  await expect.poll(viewerWidth).toBeGreaterThan(full);
+  await expect.poll(canvasWidth).toBeGreaterThan(300);
+  await page.keyboard.press('\\');
+  // Focus mode: only the viewer remains and it fills the window.
+  await page.keyboard.press('f');
+  await expect(page.locator('.ws')).toHaveClass(/is-focus/);
+  await expect(page.locator('.panel')).toHaveCount(0);
+  await expect.poll(viewerWidth).toBeGreaterThan(full * 1.5);
+  await expect.poll(canvasWidth).toBeGreaterThan(300);
+  await page.screenshot({ path: path.join(shots, '14-focus-mode.png') });
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.ws')).not.toHaveClass(/is-focus/);
+});
+
 test('scoring a criterion and checking the draft preview', async ({ page }) => {
   await startWithSample(page);
   await page.locator('.panel-tab', { hasText: 'Score' }).click();
