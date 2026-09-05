@@ -992,6 +992,233 @@ const DFG: Framework = {
   expectedSections: ['State of the art', 'Preliminary work', 'Objectives', 'Work programme', 'Methods', 'Handling of research data', 'Requested modules', 'Funding'],
 };
 
+/* ---------- HDSA (Human Biology Project / Human Experience Project) ---------- */
+
+const HDSA: Framework = {
+  id: 'hdsa',
+  name: 'HDSA Human Biology / Human Experience Project',
+  agency: 'HDSA',
+  blurb:
+    'Five criteria scored by the HDSA Scientific Advisory Board: impact and relevance, scientific approach, feasibility, investigator and environment, and clinical collaboration (with patient engagement for the Human Experience stream). The RFP does not publish the numeric scale; the 1 to 5 default here can be changed to match your ProposalCentral score sheet.',
+  criterionScale: FIVE_POINT,
+  criteria: [
+    {
+      id: 'impact', name: 'Impact and Relevance', short: 'Impact', group: 'core', bulleted: true,
+      keywords: ['significance', 'impact', 'relevance', 'background', 'rationale', 'statement of need', 'gap'],
+      description: 'Human Biology: does the research address an important problem in HD biology and offer potential to advance understanding or enable treatment? Human Experience: does it address a meaningful gap in the lived experience of HD, with practical implications for people with HD, their families, or their care?',
+      prompts: [
+        'Does the project address an important problem in HD biology, or a meaningful gap in the lived experience of HD?',
+        'Will the findings inform therapeutic development, clinical trial design, regulatory arguments, or patient care?',
+        'Human Biology: does it use HD patient-derived samples or data (biofluids, CSF, PBMCs, postmortem tissue) rather than only cell lines or animal material?',
+        'Human Biology: does it develop or validate clinically meaningful biomarkers or endpoints, including treatment response and progression across HD-ISS stages?',
+        'Human Experience: will findings improve cognition, function, quality of life, or care across disease stages?',
+        'Does it address HDSA priorities: supporting people as disease-modifying therapies emerge, patient-centered outcome measures, or equity of access for rural and underserved communities?',
+      ],
+    },
+    {
+      id: 'approach', name: 'Scientific Approach', short: 'Approach', group: 'core', bulleted: true,
+      keywords: ['approach', 'methods', 'design', 'analysis', 'outcome measures', 'statistic', 'aims', 'research plan'],
+      description: 'Are the design, methods, and analyses (or outcome measures) well developed, rigorous, appropriate to the aims, and, for the Human Experience stream, patient-centered?',
+      prompts: [
+        'Are the design, methods, and analyses rigorous and appropriate to the aims?',
+        'Human Experience: are the outcome measures patient-centered and relevant to clinical trials or regulatory submissions?',
+        'For survey-based or lifestyle studies: is there a well-defined population and sufficient statistical power, or a justified pilot design with a clear, feasible plan for scale-up?',
+        'For pilot-scale experimental medicine studies: does the design establish feasibility and generate hypotheses even with limited power?',
+        'Are potential pitfalls and alternative strategies addressed?',
+      ],
+    },
+    {
+      id: 'feasibility', name: 'Feasibility', short: 'Feasibility', group: 'core', bulleted: true,
+      keywords: ['timeline', 'feasibility', 'milestones', 'recruitment', 'preliminary', 'resources'],
+      description: 'Can the project be completed within the timeline (one or two years) and with the available resources, including participant recruitment or sample procurement?',
+      prompts: [
+        'Is the timeline realistic for a one- or two-year award?',
+        'Human Experience: is participant recruitment credible, including through HD Trialfinder and the COE network?',
+        'Human Biology: is access to samples and data assured, with documentation where postmortem tissue is used?',
+        'Do preliminary data or prior experience support feasibility?',
+        'Are IRB or equivalent approvals planned so funds can be disbursed on time?',
+      ],
+    },
+    {
+      id: 'investigator', name: 'Investigator and Environment', short: 'Investigator', group: 'core', bulleted: true,
+      keywords: ['investigator', 'applicant', 'team', 'expertise', 'environment', 'institution', 'biosketch', 'mentor'],
+      description: 'Is the applicant well suited to carry out the work, does the team have the relevant expertise, and is the institutional environment appropriate for this type of research?',
+      prompts: [
+        'Does the applicant, or the team, have the expertise the aims require, including clinical, behavioral, or patient-centered research expertise where relevant?',
+        'For mentored applications: is there a letter from a qualified mentor with a primary academic or research appointment?',
+        'Is the applicant committing at least 50% effort?',
+        'Does the environment provide the facilities and support the project needs?',
+        'Would the award bring a new investigator into the HD field through collaborative, mentored research?',
+      ],
+    },
+    {
+      id: 'collaboration', name: 'Clinical Collaboration and Patient Engagement', short: 'Collaboration', group: 'core', bulleted: true,
+      keywords: ['collaboration', 'center of excellence', 'coe', 'clinic', 'clinical site', 'participants', 'engagement', 'lived experience', 'letter'],
+      description: 'Is there a strong, genuine relationship with an HDSA Center of Excellence or equivalent HD clinical site? Will sample procurement and data access be supported and feasible? For the Human Experience stream, are people with lived experience engaged in meaningful ways?',
+      prompts: [
+        'Is the COE or clinical partnership substantive rather than nominal, with a letter or evidence of an established relationship?',
+        'Will the clinic support sample procurement, data access, or participant recruitment?',
+        'Does the project complement or extend existing HD datasets, biorepositories, or COE infrastructure?',
+        'Human Experience: are people with lived experience engaged in the design or conduct of the research?',
+        'For purely in silico or data-only projects: is there active consultation with COE clinical experts?',
+      ],
+    },
+    {
+      id: 'stream', name: 'Program Fit', short: 'Program fit', group: 'additional',
+      keywords: ['human biology', 'human experience', 'stream', 'program'],
+      scale: {
+        kind: 'categorical',
+        options: [
+          { value: 'fits', label: 'Fits the chosen stream' },
+          { value: 'other-stream', label: 'Belongs in the other stream', hint: 'Molecular or biomarker work without functional relevance belongs in Human Biology; participant-centered work belongs in Human Experience.' },
+          { value: 'outside', label: 'Outside both streams' },
+        ],
+      },
+      description: 'Human Biology projects must involve clinical samples or patient-derived data (iPSC work must be tied to patient findings). Human Experience projects must involve active human participants whose experience is central to the question.',
+      prompts: ['Is the project in the right stream, and does it meet that stream\'s core requirement?'],
+    },
+    {
+      id: 'budget', name: 'Budget', short: 'Budget', group: 'additional',
+      keywords: ['budget', 'justification', 'salary', 'effort'],
+      scale: {
+        kind: 'categorical',
+        options: [
+          { value: 'appropriate', label: 'Appropriate and within limits' },
+          { value: 'adjust', label: 'Adjustments recommended' },
+          { value: 'noncompliant', label: 'Exceeds RFP limits' },
+        ],
+      },
+      description: 'Up to $90,000 per year for one or two years: at most $72,000 for salary and fringe, at most $30,000 for research costs, travel capped at $5,000 per year, no equipment or personal computing devices, no indirect costs, minimum 50% applicant effort.',
+      prompts: ['Do the salary, research-cost, and travel lines respect the RFP caps?', 'Are the costs justified by the plan?'],
+    },
+  ],
+  overall: {
+    label: 'Overall score',
+    description: 'Your overall assessment for the Scientific Advisory Board. Check the score sheet in ProposalCentral for the scale used in this cycle.',
+    scale: FIVE_POINT,
+  },
+  recommendations: ['Recommend funding', 'Fundable if resources allow', 'Do not recommend'],
+  checklist: [
+    ...CORE_CHECKS,
+    { id: 'coe', label: 'Substantive collaboration with an HDSA Center of Excellence or HD clinical site', category: 'feasibility', patterns: [/Center(s)? of Excellence/i, /\bCOE\b/, /HD clinic/i, /clinical (site|partner|collaborat)/i] },
+    { id: 'samples', label: 'Human Biology: clinical samples or patient-derived data are central', category: 'science', patterns: [/patient-?derived/i, /clinical samples?/i, /biofluid|\bCSF\b|\bPBMCs?\b|postmortem|post-mortem/i, /biorepositor/i] },
+    { id: 'participants', label: 'Human Experience: active human participants and a recruitment plan', category: 'feasibility', patterns: [/participants?\b/i, /recruit(ment|ing)?/i, /Trialfinder/i] },
+    { id: 'lived', label: 'People with lived experience engaged in design or conduct', category: 'science', patterns: [/lived experience/i, /patient (partners?|engagement|advisory)/i, /caregivers?/i] },
+    { id: 'biomarkers', label: 'Biomarkers or endpoints tied to treatment response or HD-ISS stage (if applicable)', category: 'science', patterns: [/biomarker/i, /HD-?ISS/i, /endpoints?/i, /responders?/i] },
+    { id: 'effort', label: 'Applicant effort of at least 50%', category: 'compliance', patterns: [/\b(50|[5-9]\d|100)\s?% ?(effort|FTE)/i, /percent effort/i] },
+    { id: 'mentor', label: 'Mentor letter for mentored or trainee applications', category: 'compliance', patterns: [/letter of support/i, /mentor/i] },
+    { id: 'dataSharingHdsa', label: 'Data sharing and PubMed Central deposit acknowledged', category: 'compliance', patterns: [/PubMed Central|\bPMC\b/i, ...RX.dataSharing] },
+    ...REVIEWER_CHECKS,
+  ],
+  guidance: [
+    'Both streams require a meaningful collaboration with an HDSA Center of Excellence or equivalent; nominal arrangements are not sufficient.',
+    'Human Biology favours patient-derived samples, proof-of-response studies, and biomarkers that distinguish responders from non-responders.',
+    'Human Experience favours cognitive, psychiatric, behavioural, rehabilitation, caregiver, and patient-reported outcomes work with active participants.',
+    'Early-career investigators and HD newcomers are especially encouraged; judge mentored applications with that in mind.',
+    'Pilot-scale experimental medicine studies with limited power are acceptable when they establish feasibility and generate hypotheses.',
+    'Budget caps: $90,000 per year, $72,000 salary and fringe, $30,000 research costs, $5,000 travel, no equipment, no indirects.',
+  ],
+  expectedSections: ['Abstract', 'Specific Aims', 'Background', 'Significance', 'Research Plan', 'Approach', 'Methods', 'Feasibility', 'Timeline', 'Budget', 'Budget Justification', 'Key Personnel', 'Biographical Sketch', 'Letters of Support', 'Human Subjects', 'Clinical Collaboration'],
+};
+
+/* ---------- HDF (Hereditary Disease Foundation) ---------- */
+
+const HDF: Framework = {
+  id: 'hdf',
+  name: 'HDF Research Grant / Postdoctoral Fellowship',
+  agency: 'HDF',
+  blurb:
+    'The Hereditary Disease Foundation\'s Scientific Advisory Board scores nine criteria: relevance, novelty, significance, scientific premise, approach, applicant, environment, budget, and NIH formatting. The scale is not published; the 1 to 5 default here can be changed to match your score sheet.',
+  criterionScale: FIVE_POINT,
+  criteria: [
+    {
+      id: 'relevance', name: 'Relevance', short: 'Relevance', group: 'core', bulleted: true,
+      keywords: ['relevance', 'huntington', 'disease mechanism', 'therapeutic', 'background'],
+      description: 'Is the proposed project relevant to understanding fundamental disease mechanisms in Huntington\'s disease or advancing disease-modifying therapeutics?',
+      prompts: ['Does the project bear directly on HD mechanisms or on disease-modifying therapy?', 'If the work is in another brain disease or a model system, is the path to HD explicit?'],
+    },
+    {
+      id: 'novelty', name: 'Novelty', short: 'Novelty', group: 'core', bulleted: true,
+      keywords: ['novel', 'innovation', 'innovative', 'original'],
+      description: 'Are the hypotheses, approaches, and expected findings novel?',
+      prompts: ['What is new in the hypothesis, the approach, or the expected findings?', 'Is the innovation a genuine departure or a refinement of existing work?'],
+    },
+    {
+      id: 'significance', name: 'Significance', short: 'Significance', group: 'core', bulleted: true,
+      keywords: ['significance', 'impact', 'advance'],
+      description: 'If the proposed study is completed, will it make a conceptual advance in understanding HD pathogenic mechanisms?',
+      prompts: ['What conceptual advance would completion deliver?', 'How would the field or therapy development change as a result?'],
+    },
+    {
+      id: 'premise', name: 'Scientific Premise', short: 'Premise', group: 'core', bulleted: true,
+      keywords: ['premise', 'preliminary', 'rationale', 'evidence', 'literature'],
+      description: 'Is the proposed study based on strong evidence derived from the literature or preliminary data?',
+      prompts: ['Is the rationale supported by rigorous prior work or convincing preliminary data?', 'Are the key assumptions tested or testable?'],
+    },
+    {
+      id: 'approach', name: 'Approach', short: 'Approach', group: 'core', bulleted: true,
+      keywords: ['approach', 'methods', 'design', 'analysis', 'aims', 'research plan', 'timeline'],
+      description: 'Is the proposed scientific plan appropriate and feasible for addressing the main question(s)?',
+      prompts: ['Are the design, methods, and analyses appropriate to the questions?', 'Is the plan feasible within one year (grant) or two years (fellowship)?', 'Are pitfalls and alternatives considered?', 'Is rigor addressed: sample size, blinding, replication, sex as a variable?'],
+    },
+    {
+      id: 'applicant', name: 'Applicant', short: 'Applicant', group: 'core', bulleted: true,
+      keywords: ['applicant', 'biosketch', 'track record', 'mentor', 'investigator', 'independence'],
+      description: 'Is the applicant qualified to conduct and/or supervise the proposed study? Does the applicant have a track record in the research field relevant to the proposal?',
+      prompts: ['Do training, publications, and preliminary work show the applicant can deliver?', 'Fellowships: is the mentor\'s letter strong and the training plan credible?', 'Grants from junior applicants: do the letters address independence and expertise?', 'Is the applicant committed to a career in HD research?'],
+    },
+    {
+      id: 'environment', name: 'Environment', short: 'Environment', group: 'core', bulleted: true,
+      keywords: ['environment', 'institution', 'facilities', 'resources', 'support'],
+      description: 'Does the applicant\'s institution provide sufficient support to ensure the proposed studies can be completed in an optimal and timely manner?',
+      prompts: ['Are the facilities, core services, and institutional support adequate?', 'Are collaborations in place for any specialised needs?'],
+    },
+    {
+      id: 'budget', name: 'Budget', short: 'Budget', group: 'additional',
+      keywords: ['budget', 'justification', 'overlap', 'other support'],
+      scale: {
+        kind: 'categorical',
+        options: [
+          { value: 'appropriate', label: 'Appropriate, no overlap' },
+          { value: 'adjust', label: 'Adjustments recommended' },
+          { value: 'overlap', label: 'Overlap with other funding' },
+        ],
+      },
+      description: 'Is the budget appropriate for the proposed plan? Is there budget overlap with the applicant\'s other ongoing grants? Up to $100,000 per year; no indirect costs.',
+      prompts: ['Are salary, supplies, equipment, and benefits justified by the plan?', 'Is there overlap with other ongoing grants?'],
+    },
+    {
+      id: 'format', name: 'NIH Guidelines', short: 'Formatting', group: 'additional',
+      keywords: ['format', 'guidelines'],
+      scale: ACCEPTABLE_SCALE,
+      description: 'Grants must follow NIH formatting guidelines, including NIH-style biosketches.',
+      prompts: ['Does the application follow NIH formatting and include NIH-style biosketches for investigators?'],
+    },
+  ],
+  overall: {
+    label: 'Overall score',
+    description: 'Your overall assessment for the Scientific Advisory Board. HDF gives highest priority to the most innovative and impactful proposals and to early-career investigators committed to HD research.',
+    scale: FIVE_POINT,
+  },
+  recommendations: ['Recommend funding', 'Fundable if resources allow', 'Do not recommend'],
+  checklist: [
+    ...CORE_CHECKS,
+    { id: 'hdRelevance', label: 'Direct relevance to Huntington\'s disease is explicit', category: 'science', patterns: [/Huntington/i, /\bHTT\b|huntingtin/i, /\bCAG\b/] },
+    { id: 'mentor', label: 'Mentor letter (fellowships) or letters on independence (junior grants)', category: 'compliance', patterns: [/letter of support/i, /mentor/i, /independen(ce|t)/i] },
+    { id: 'overlap', label: 'No budget overlap with other ongoing grants', category: 'compliance', patterns: [/overlap/i, /other support/i, /current(ly)? funded|active grants?/i] },
+    { id: 'career', label: 'Career stage and commitment to HD research are clear', category: 'feasibility', patterns: [/postdoctoral|post-doctoral|early[- ]career|years? (since|post) (PhD|Ph\.D)/i, /career/i] },
+    ...REVIEWER_CHECKS,
+  ],
+  guidance: [
+    'Only the most meritorious applications are funded; HDF gives highest priority to the most innovative and impactful proposals.',
+    'Early-career investigators, including postdoctoral fellows committed to HD research, are prioritised; fellowships are for postdocs up to 7 years post-PhD.',
+    'Research grants are one year (renewable once) and are meant to generate preliminary data; judge scope accordingly.',
+    'Check for budget overlap with other ongoing grants; HDF does not pay indirect costs.',
+    'The application must have direct relevance to Huntington\'s disease.',
+  ],
+  expectedSections: ['Abstract', 'Specific Aims', 'Background', 'Significance', 'Innovation', 'Approach', 'Research Strategy', 'Preliminary Data', 'Budget', 'Budget Justification', 'Biographical Sketch', 'Letters of Support', 'Other Support'],
+};
+
 /* ---------- registry ---------- */
 
 /** Checklist attached to reviewer-defined frameworks. */
@@ -1076,7 +1303,7 @@ export function allFrameworks(): Framework[] {
   return [...FRAMEWORKS, ...customFrameworks];
 }
 
-export const FRAMEWORKS: Framework[] = [NIH_2025, NIH_LEGACY, NSF, CIHR, ERC, HORIZON, NSERC, NHMRC, WELLCOME, UKRI, DFG, GENERIC];
+export const FRAMEWORKS: Framework[] = [NIH_2025, NIH_LEGACY, NSF, CIHR, ERC, HORIZON, NSERC, NHMRC, WELLCOME, UKRI, DFG, HDSA, HDF, GENERIC];
 
 export function getFramework(id: string): Framework {
   return FRAMEWORKS.find((f) => f.id === id) ?? customFrameworks.find((f) => f.id === id) ?? GENERIC;
@@ -1104,17 +1331,24 @@ export function scoreLabel(scale: ScaleDef, value: number | string | undefined):
 /** Suggest a framework id from text found in the application. */
 export function detectFramework(text: string): string | undefined {
   const t = text.slice(0, 20000);
-  // NIH signals are checked first: its mechanism codes are unambiguous, and the
-  // phrase "Project Grant" can appear inside an NIH mechanism description.
-  if (/National Institutes of Health|\bNIH\b|\bR01\b|\bR21\b|\bR03\b|\bR35\b|\bU01\b|\bU54\b|\bK99\b|\bK08\b|\bP01\b|\bP50\b|\bF31\b|\bF32\b|Specific Aims/i.test(t)) return 'nih-2025';
+  // Named funders first: foundations often require NIH-style formatting, so
+  // "Specific Aims" or a biosketch must not be mistaken for an NIH application.
+  if (/Huntington'?s Disease Society of America|\bHDSA\b|Human Biology Project|Human Experience Project/i.test(t)) return 'hdsa';
+  if (/Hereditary Disease Foundation|\bHDF\b/i.test(t)) return 'hdf';
   if (/Canadian Institutes of Health Research|\bCIHR\b|Foundation Grant|Nominated Principal Applicant/i.test(t)) return 'cihr-project';
   if (/European Research Council|\bERC\b|Starting Grant|Consolidator Grant|Synergy Grant/i.test(t)) return 'erc';
-  if (/National Science Foundation|\bNSF\b|Intellectual Merit|Broader Impacts/i.test(t)) return 'nsf';
   if (/Horizon Europe|\bHORIZON-[A-Z]+/i.test(t)) return 'horizon-europe';
   if (/\bNSERC\b|Natural Sciences and Engineering Research Council|Discovery Grant/i.test(t)) return 'nserc-discovery';
   if (/\bNHMRC\b|National Health and Medical Research Council|Ideas Grant/i.test(t)) return 'nhmrc-ideas';
   if (/\bWellcome\b/i.test(t)) return 'wellcome';
-  if (/\bUKRI\b|Medical Research Council|\bMRC\b|\bBBSRC\b|\bEPSRC\b|Case for Support/i.test(t)) return 'ukri';
   if (/Deutsche Forschungsgemeinschaft|\bDFG\b|Sachbeihilfe/i.test(t)) return 'dfg';
+  if (/National Science Foundation/i.test(t)) return 'nsf';
+  if (/\bUKRI\b|Medical Research Council|\bBBSRC\b|\bEPSRC\b/i.test(t)) return 'ukri';
+  // NIH: mechanism codes and the agency name are decisive.
+  if (/National Institutes of Health|\bR01\b|\bR21\b|\bR03\b|\bR35\b|\bU01\b|\bU54\b|\bK99\b|\bK08\b|\bP01\b|\bP50\b|\bF31\b|\bF32\b/i.test(t)) return 'nih-2025';
+  // Weaker signals last.
+  if (/Intellectual Merit|Broader Impacts|\bNSF\b/i.test(t)) return 'nsf';
+  if (/\bMRC\b|Case for Support/i.test(t)) return 'ukri';
+  if (/\bNIH\b|Specific Aims/i.test(t)) return 'nih-2025';
   return undefined;
 }

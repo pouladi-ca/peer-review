@@ -42,8 +42,11 @@ mechanical weight off that process so your attention stays on the science.
 - **Scores the way your agency does.** Built-in frameworks for **NIH** (2025
   simplified and the legacy five criteria), **NSF**, **CIHR**, **ERC**,
   **Horizon Europe**, **NSERC Discovery**, **NHMRC Ideas**, **Wellcome**,
-  **UKRI/MRC**, and **DFG**, plus a general rubric, each with its scale, guiding
-  questions, and an overall rating. A consistency check flags when your overall
+  **UKRI/MRC**, **DFG**, and the Huntington's disease funders **HDSA** (Human
+  Biology and Human Experience Projects) and **HDF** (research grants and
+  postdoctoral fellowships), plus a general rubric, each with its scale,
+  guiding questions, and an overall rating. Where a funder does not publish
+  its numeric scale, the framework says so and defaults to 1 to 5. A consistency check flags when your overall
   score drifts from your criterion scores.
 - **Works for any agency.** Open *Manage frameworks…* from the framework menu to
   define your own criteria and scales, or duplicate a built-in rubric and edit

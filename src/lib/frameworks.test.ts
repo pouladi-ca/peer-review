@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { FRAMEWORKS, allFrameworks, customToFramework, detectFramework, frameworkToCustomDef, getFramework, setCustomFrameworks, scoreLabel, type CustomFrameworkDef } from './frameworks';
 
 describe('built-in frameworks', () => {
-  it('ships twelve frameworks with core criteria, scales, and checklists', () => {
-    expect(FRAMEWORKS.length).toBe(12);
+  it('ships fourteen frameworks with core criteria, scales, and checklists', () => {
+    expect(FRAMEWORKS.length).toBe(14);
     for (const fw of FRAMEWORKS) {
       expect(fw.criteria.filter((c) => c.group === 'core').length).toBeGreaterThan(0);
       expect(fw.checklist.some((c) => c.category === 'reviewer')).toBe(true);
@@ -18,6 +18,23 @@ describe('built-in frameworks', () => {
     expect(detectFramework('Wellcome Discovery Award')).toBe('wellcome');
     expect(detectFramework('Case for Support to the Medical Research Council')).toBe('ukri');
     expect(detectFramework('Antrag an die Deutsche Forschungsgemeinschaft (DFG)')).toBe('dfg');
+  });
+
+  it('detects HDSA and HDF, and prefers them over NIH-style formatting signals', () => {
+    expect(detectFramework('Proposal To: HDSA - Human Biology Project')).toBe('hdsa');
+    expect(detectFramework("Huntington's Disease Society of America Human Experience Project")).toBe('hdsa');
+    expect(detectFramework('Hereditary Disease Foundation postdoctoral fellowship. Specific Aims. NIH biosketch attached.')).toBe('hdf');
+    expect(detectFramework('Application to the HDF. Follow NIH formatting guidelines.')).toBe('hdf');
+    // A real NIH application still detects as NIH.
+    expect(detectFramework('National Institutes of Health R01 Specific Aims')).toBe('nih-2025');
+  });
+
+  it('HDSA and HDF frameworks carry their published criteria', () => {
+    const hdsa = getFramework('hdsa');
+    expect(hdsa.criteria.filter((c) => c.group === 'core').map((c) => c.short)).toEqual(['Impact', 'Approach', 'Feasibility', 'Investigator', 'Collaboration']);
+    const hdf = getFramework('hdf');
+    expect(hdf.criteria.map((c) => c.name)).toEqual(['Relevance', 'Novelty', 'Significance', 'Scientific Premise', 'Approach', 'Applicant', 'Environment', 'Budget', 'NIH Guidelines']);
+    expect(hdsa.checklist.some((c) => c.id === 'coe')).toBe(true);
   });
 
   it('labels Horizon Europe half-point scores by band', () => {
