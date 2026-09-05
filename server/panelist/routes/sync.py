@@ -276,6 +276,13 @@ async def upload_file(review_id: str, doc_id: str, request: Request) -> dict[str
             "sha256 = excluded.sha256, uploaded_at = excluded.uploaded_at",
             (review_id, doc_id, size, digest.hexdigest(), int(time.time() * 1000)),
         )
+    # Build the reading view straight away so a phone opening this review finds it ready.
+    from .reflow import start_reflow
+
+    try:
+        start_reflow(request, review_id, doc_id, None, force=True)
+    except Exception:  # noqa: BLE001 - the upload succeeded regardless
+        pass
     return {"ok": True, "size": size, "sha256": digest.hexdigest()}
 
 

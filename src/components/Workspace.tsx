@@ -4,6 +4,7 @@ import { useIsPhone } from '../hooks/useMedia';
 import { TopBar } from './TopBar';
 import { Navigator } from './Navigator';
 import { PdfViewer } from './viewer/PdfViewer';
+import { ReadView } from './reader/ReadView';
 import { Panel } from './panels/Panel';
 import { Sheet } from './Sheet';
 
@@ -19,14 +20,16 @@ export function Workspace() {
   const focusMode = useStore((s) => s.focusMode);
   const navOpen = useStore((s) => s.navOpen);
   const isPhone = useIsPhone();
+  const viewMode = useStore((s) => s.viewMode);
+  const Viewer = viewMode === 'read' ? ReadView : PdfViewer;
 
-  if (isPhone) return <PhoneWorkspace />;
+  if (isPhone) return <PhoneWorkspace Viewer={Viewer} />;
   return (
     <div className={`ws ${focusMode ? 'is-focus' : ''} ${navOpen ? '' : 'nav-closed'}`}>
       <TopBar />
       <div className="ws-body">
         {!focusMode && navOpen && <Navigator />}
-        <PdfViewer />
+        <Viewer />
         {!focusMode && <Panel />}
       </div>
     </div>
@@ -34,7 +37,7 @@ export function Workspace() {
 }
 
 /** Phones: the document fills the screen; panels open as bottom sheets from a tab bar. */
-function PhoneWorkspace() {
+function PhoneWorkspace({ Viewer }: { Viewer: () => React.JSX.Element }) {
   const sheet = useStore((s) => s.sheet);
   const tab = useStore((s) => s.tab);
   const noteCount = useStore((s) => s.review?.annotations.length ?? 0);
@@ -44,7 +47,7 @@ function PhoneWorkspace() {
     <div className="ws is-phone is-focus">
       <TopBar />
       <div className="ws-body">
-        <PdfViewer />
+        <Viewer />
       </div>
       <nav className="tabbar" aria-label="Review panels">
         <button type="button" className={`tabbar-btn ${sheet === 'nav' ? 'is-on' : ''}`} onClick={() => setSheet(sheet === 'nav' ? null : 'nav')}>

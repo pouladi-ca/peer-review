@@ -23,9 +23,12 @@ mechanical weight off that process so your attention stays on the science.
 
 ## What it does
 
-- **Reads the PDF in the browser.** Drop in the application (and any supporting
-  documents) and start reading immediately, with a crisp text layer, search, an
-  auto-detected section outline, and a page map that tracks what you have read.
+- **Two ways to read.** *Pages* shows the PDF as laid out, with a crisp text
+  layer, search, an auto-detected outline, and a page map that tracks what you
+  have read. *Read* reflows the application into clean, responsive text with
+  headings, bold and italic runs, figure and table cards you can tap to zoom, and
+  a table of contents, which is how it reads on a phone. Notes made in either view
+  appear in the other, and your position carries across views and devices.
   Mixed portrait and landscape pages (budget tables, Gantt charts) each fit the
   width or, with *Fit whole page*, the window; non-embedded standard fonts
   render correctly. PDFs whose fonts
@@ -72,6 +75,15 @@ mechanical weight off that process so your attention stays on the science.
   another machine.
 - **Gets out of your way.** A command palette (**⌘K**), full keyboard control,
   focus mode, and light or dark themes.
+
+## Reading view
+
+The server reflows each uploaded PDF (PyMuPDF, the extractor shared with
+Marginalia): running headers and footers are dropped, paragraphs are joined
+across page breaks, figures and ruled tables are cut out as images with their
+captions, and Word-exported fonts that leave ligature glyphs unnamed are repaired
+from the font's own metrics. It runs in the background right after upload, so a
+phone opening the review a minute later finds it ready.
 
 ## Privacy and sync
 

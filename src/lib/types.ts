@@ -23,6 +23,8 @@ export interface Annotation {
   comment: string;
   createdAt: number;
   updatedAt: number;
+  /** Position in the reflowed reading view, when the note was made there. */
+  anchor?: { startBlock: string; startOff: number; endBlock: string; endOff: number };
 }
 
 export type DocRole = 'application' | 'supporting' | 'guidance';

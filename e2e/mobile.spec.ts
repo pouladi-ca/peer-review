@@ -10,8 +10,8 @@ const shots = path.join(dir, '..', 'screenshots');
 test('a phone gets the tab bar, sheets, and a docked tagging toolbar', async ({ page }) => {
   await login(page);
   await page.getByRole('button', { name: 'Try a sample application', exact: true }).click();
-  await expect(page.locator('.pdf-canvas').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.tabbar')).toBeVisible();
+  await expect(page.locator('.viewer')).toBeVisible();
   // The document fills the width: no navigator or panel column.
   await expect(page.locator('.nav')).toHaveCount(0);
   await expect(page.locator('.panel')).toHaveCount(0);
@@ -20,22 +20,29 @@ test('a phone gets the tab bar, sheets, and a docked tagging toolbar', async ({ 
 
   // Contents sheet.
   await page.getByRole('button', { name: 'Contents' }).click();
-  await expect(page.locator('.sheet .outline')).toBeVisible();
+  await expect(page.locator('.sheet .outline')).toBeVisible({ timeout: 60_000 });
   await page.locator('.outline-item', { hasText: 'Specific Aims' }).click();
   await page.locator('.scrim').click({ position: { x: 20, y: 20 } });
   await expect(page.locator('.sheet')).toHaveCount(0);
   await page.waitForTimeout(900); // let the smooth scroll from the outline tap settle
 
-  // Select text; on touch the toolbar docks at the bottom.
-  const span = page.locator('.textLayer span').filter({ hasText: /stroke|astrocyte|repair|aims/i }).first();
-  await expect(span).toBeVisible();
-  await span.evaluate((el) => {
+  // Phones default to the reading view; wait for the reflow to be served.
+  const content = page.locator('.read-content');
+  await expect(content).toBeVisible({ timeout: 60_000 });
+  await expect(content.locator('h2', { hasText: 'Specific Aims' })).toBeVisible();
+
+  // Select text in the reading view; on touch the toolbar docks at the bottom.
+  const para = content.locator('p').filter({ hasText: /Stroke affects more than 12 million/ }).first();
+  await para.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500);
+  await para.evaluate((el) => {
+    const text = el.firstChild!;
     const range = document.createRange();
-    range.selectNodeContents(el);
+    range.setStart(text, 0);
+    range.setEnd(text, 40);
     const sel = window.getSelection()!;
     sel.removeAllRanges();
     sel.addRange(range);
-    el.dispatchEvent(new TouchEvent('touchend', { bubbles: true }));
   });
   const toolbar = page.locator('.sel-toolbar');
   await expect(toolbar).toBeVisible();

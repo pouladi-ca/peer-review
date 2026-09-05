@@ -7,6 +7,8 @@ import { searchPages } from '../../lib/analyze/search';
 import { mergeLineRects, rectContains } from '../../lib/geometry';
 import type { NoteKind, Rect } from '../../lib/types';
 import { PdfPage } from './PdfPage';
+import { ViewModeToggle } from './ViewModeToggle';
+import { rectsForQuote } from '../../lib/reflow/locate';
 import { SelectionToolbar, type PendingSelection } from './SelectionToolbar';
 import { IconButton, KIND_META } from '../ui';
 import { isTyping } from '../../hooks/useGlobal';
@@ -82,9 +84,10 @@ export function PdfViewer() {
       const el = scrollRef.current;
       if (!el) return;
       setScrollTop(el.scrollTop);
-      if (pending) setPending(null);
     });
-  }, [pending]);
+  }, []);
+  // A deliberate scroll dismisses a pending selection; programmatic scrolls do not.
+  const dismissPending = useCallback(() => setPending((cur) => (cur ? null : cur)), []);
 
   useEffect(() => {
     if (!layout.length) return;
@@ -221,6 +224,22 @@ export function PdfViewer() {
     };
   }, [readSelection]);
 
+  // Notes made in the reading view carry no page rectangles; locate their quote here.
+  const annotationsByPage = useMemo(() => {
+    const m = new Map<number, typeof review.annotations>();
+    for (const a of review.annotations) {
+      if (!doc || a.docId !== doc.id) continue;
+      let note = a;
+      if (!a.rects.length && doc.status === 'ready') {
+        const pageText = doc.pages[a.page - 1];
+        const rects = pageText ? rectsForQuote(pageText, a.quote) : [];
+        if (rects.length) note = { ...a, rects };
+      }
+      m.set(a.page, [...(m.get(a.page) ?? []), note]);
+    }
+    return m;
+  }, [review.annotations, doc]);
+
   const onClickPage = useCallback(
     (e: React.MouseEvent) => {
       const sel = window.getSelection();
@@ -231,14 +250,14 @@ export function PdfViewer() {
       const x = (e.clientX - pr.left) / pr.width;
       const y = (e.clientY - pr.top) / pr.height;
       const pageNum = Number(pageEl.dataset.page);
-      const hit = review.annotations.find((a) => a.docId === doc.id && a.page === pageNum && a.rects.some((r) => rectContains(r, x, y)));
+      const hit = (annotationsByPage.get(pageNum) ?? []).find((a) => a.rects.some((r) => rectContains(r, x, y)));
       const s = useStore.getState();
       if (hit) {
         s.selectNote(hit.id);
         s.setTab('notes');
       } else if (s.selectedNoteId) s.selectNote(null);
     },
-    [doc, review.annotations],
+    [doc, annotationsByPage],
   );
 
   const searchHits = useMemo(() => (doc && navTab === 'search' && searchQuery.length >= 2 ? searchPages(doc.id, doc.pages, searchQuery) : []), [doc, searchQuery, navTab]);
@@ -253,14 +272,6 @@ export function PdfViewer() {
     return set;
   }, [layout, scrollTop, viewH]);
 
-  const annotationsByPage = useMemo(() => {
-    const m = new Map<number, typeof review.annotations>();
-    for (const a of review.annotations) {
-      if (!doc || a.docId !== doc.id) continue;
-      m.set(a.page, [...(m.get(a.page) ?? []), a]);
-    }
-    return m;
-  }, [review.annotations, doc]);
 
   const total = meta?.pages ?? doc?.pages.length ?? 0;
   const section = doc ? sectionAt(doc.outline, page, 1) : undefined;
@@ -303,12 +314,16 @@ export function PdfViewer() {
           <span className="toolbar-sep" aria-hidden />
           <IconButton icon={StretchHorizontal} label="Fit width" active={fitMode === 'width'} onClick={() => useStore.getState().setFitMode('width')} />
           <IconButton icon={Maximize} label="Fit whole page" active={fitMode === 'page'} onClick={() => useStore.getState().setFitMode('page')} />
+          <span className="toolbar-sep" aria-hidden />
+          <ViewModeToggle />
         </div>
       </div>
       <div
         className="viewer-scroll"
         ref={scrollRef}
         onScroll={onScroll}
+        onWheel={dismissPending}
+        onTouchMove={dismissPending}
         onMouseUp={onMouseUp}
         onTouchEnd={() => setTimeout(readSelection, 250)}
         onKeyUp={(e) => e.shiftKey && onMouseUp()}

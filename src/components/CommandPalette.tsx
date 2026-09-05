@@ -40,6 +40,8 @@ export function CommandPalette() {
       tabs.forEach(([id, label], i) => list.push({ id: `tab-${id}`, label: `Open ${label}`, group: 'Panels', hint: String(i + 1), run: () => (s.setTab(id), close()) }));
       list.push({ id: 'focus', label: s.focusMode ? 'Leave focus mode' : 'Focus mode: hide panels', group: 'View', hint: 'F', run: () => (s.toggleFocus(), close()) });
       list.push({ id: 'nav', label: s.navOpen ? 'Hide navigator' : 'Show navigator', group: 'View', hint: '\\', run: () => (s.toggleNav(), close()) });
+      list.push({ id: 'view-read', label: 'Reading view (reflowed text)', group: 'View', run: () => (s.setViewMode('read'), close()) });
+      list.push({ id: 'view-pages', label: 'Page view (PDF layout)', group: 'View', run: () => (s.setViewMode('pages'), close()) });
       list.push({ id: 'fit-width', label: 'Fit page width', group: 'View', run: () => (s.setFitMode('width'), close()) });
       list.push({ id: 'fit-page', label: 'Fit whole page in window', group: 'View', run: () => (s.setFitMode('page'), close()) });
       list.push({ id: 'search', label: 'Find in document', group: 'View', hint: '⌘F', run: () => (s.setNavTab('search'), close(), setTimeout(() => document.querySelector<HTMLInputElement>('.nav-search input')?.focus(), 50)) });

@@ -126,6 +126,11 @@ export const api = {
       xhr.send(file);
     });
   },
+  reflowStatus: (reviewId: string, docId: string) => request<import('./reflow/types').ReflowStatus>('GET', `/api/reviews/${encodeURIComponent(reviewId)}/docs/${encodeURIComponent(docId)}/reflow`),
+  startReflow: (reviewId: string, docId: string, pages?: number[], force = false) =>
+    request<import('./reflow/types').ReflowStatus>('POST', `/api/reviews/${encodeURIComponent(reviewId)}/docs/${encodeURIComponent(docId)}/reflow`, { pages: pages ?? null, force }),
+  reflowDoc: (reviewId: string, docId: string) => request<import('./reflow/types').ReflowDoc>('GET', `/api/reviews/${encodeURIComponent(reviewId)}/docs/${encodeURIComponent(docId)}/reflow/doc.json`),
+  figureUrl: (reviewId: string, docId: string, src: string) => `/api/reviews/${encodeURIComponent(reviewId)}/docs/${encodeURIComponent(docId)}/reflow/${src}`,
   async downloadFile(reviewId: string, docId: string): Promise<Blob> {
     const res = await fetch(`/api/reviews/${encodeURIComponent(reviewId)}/files/${encodeURIComponent(docId)}`, { credentials: 'same-origin' });
     if (res.status === 401) {

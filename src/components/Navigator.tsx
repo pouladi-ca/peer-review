@@ -82,14 +82,39 @@ export function Navigator() {
 function OutlineList() {
   const doc = useStore(selectActiveDoc)!;
   const page = useStore((s) => s.page);
-  const current = useMemo(() => sectionAt(doc.outline, page, 1), [doc.outline, page]);
+  const viewMode = useStore((s) => s.viewMode);
+  const reflowDoc = useStore((s) => s.reflow[doc.id]?.doc);
   const listRef = useRef<HTMLUListElement>(null);
+  // The server's reflow finds headings more reliably than the page heuristics; prefer it when reading.
+  const toc = viewMode === 'read' && reflowDoc?.toc.length ? reflowDoc.toc : null;
+  const current = useMemo(() => {
+    if (toc) {
+      let best: (typeof toc)[number] | undefined;
+      for (const t of toc) if (t.page <= page) best = t;
+      return best ? { id: best.blockId } : undefined;
+    }
+    return sectionAt(doc.outline, page, 1);
+  }, [doc.outline, page, toc]);
 
   useEffect(() => {
     const el = listRef.current?.querySelector('.is-current');
     el?.scrollIntoView({ block: 'nearest' });
   }, [current?.id]);
 
+  if (toc) {
+    return (
+      <ul className="outline" ref={listRef}>
+        {toc.map((e) => (
+          <li key={e.blockId} className={`outline-item lvl-${Math.min(2, Math.max(1, e.level))} ${current?.id === e.blockId ? 'is-current' : ''}`}>
+            <button type="button" onClick={() => useStore.getState().jumpTo({ docId: doc.id, page: e.page, blockId: e.blockId })}>
+              <span className="outline-title">{e.title}</span>
+              <span className="outline-page">{e.page}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
+  }
   if (!doc.outline.length) {
     return (
       <EmptyState icon={List} title="No headings detected">

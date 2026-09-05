@@ -8,6 +8,8 @@ import { detectFramework, getFramework, setCustomFrameworks, type CustomFramewor
 import { getSetting, setSetting } from './db';
 import { extractAllPages, loadPdf, repairLigatures, type PDFDocumentProxy } from './pdf';
 import type { LigatureRepair } from './analyze/ligatures';
+import type { ReflowDoc, ReflowStatus } from './reflow/types';
+import { isTouchLike } from '../hooks/useMedia';
 import { detectOutline } from './analyze/outline';
 import { extractFacts } from './analyze/facts';
 import type { Annotation, DocMeta, DocRole, NoteKind, OutlineEntry, PageText, QuickFacts, Rect, Review } from './types';
@@ -17,6 +19,16 @@ export type NavTab = 'outline' | 'search' | 'pages';
 export type Theme = 'light' | 'dark' | 'system';
 /** How pages are sized at 100% zoom: to the container width, or so the whole page is visible. */
 export type FitMode = 'width' | 'page';
+/** Pages: the PDF as laid out. Read: the reflowed text with figure cards (phone-friendly). */
+export type ViewMode = 'pages' | 'read';
+
+export interface ReflowState {
+  status: ReflowStatus['status'];
+  done?: number;
+  total?: number;
+  message?: string;
+  doc?: ReflowDoc;
+}
 
 export interface RuntimeDoc {
   id: string;
@@ -36,6 +48,8 @@ export interface Jump {
   page: number;
   rect?: Rect;
   flashNoteId?: string;
+  /** Reading view: scroll to this block instead of the page's first block. */
+  blockId?: string;
   token: number;
 }
 
@@ -62,6 +76,11 @@ interface State {
   page: number;
   zoom: number;
   fitMode: FitMode;
+  viewMode: ViewMode;
+  /** Reflow (reading view) state per document id. */
+  reflow: Record<string, ReflowState>;
+  /** Figure open in the full-screen viewer: document and figure ids. */
+  figureViewer: { docId: string; figureId: string } | null;
   theme: Theme;
   focusMode: boolean;
   navOpen: boolean;
@@ -102,6 +121,10 @@ interface State {
   setPage(page: number): void;
   setZoom(zoom: number): void;
   setFitMode(mode: FitMode): void;
+  setViewMode(mode: ViewMode): void;
+  /** Make sure the reading view exists for a document; polls until ready. */
+  ensureReflow(docId: string): Promise<void>;
+  openFigure(docId: string, figureId: string | null): void;
   setTheme(theme: Theme): void;
   toggleFocus(): void;
   toggleNav(): void;
@@ -155,6 +178,16 @@ export function newReview(partial: Partial<Review> = {}): Review {
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function readViewMode(): ViewMode {
+  try {
+    const v = localStorage.getItem('panelist.view');
+    if (v === 'pages' || v === 'read') return v;
+  } catch {
+    /* ignore */
+  }
+  return isTouchLike() && window.innerWidth < 720 ? 'read' : 'pages';
+}
 
 function readFitMode(): FitMode {
   try {
@@ -297,6 +330,9 @@ export const useStore = create<State>((set, get) => {
     page: 1,
     zoom: 1,
     fitMode: readFitMode(),
+    viewMode: readViewMode(),
+    reflow: {},
+    figureViewer: null,
     theme: readTheme(),
     focusMode: false,
     navOpen: true,
@@ -428,7 +464,9 @@ export const useStore = create<State>((set, get) => {
         });
       }
       set({ busy: null });
-      void Promise.all(uploads);
+      void Promise.all(uploads).then(() => {
+        if (get().review?.id === review.id) for (const d of review.docs) void get().ensureReflow(d.id);
+      });
       return review.id;
     },
 
@@ -439,7 +477,8 @@ export const useStore = create<State>((set, get) => {
         return;
       }
       const activeDocId = review.docs[0]?.id ?? null;
-      set({ review, activeDocId, docs: {}, page: activeDocId ? review.lastPage[activeDocId] ?? 1 : 1, tab: 'brief', selectedNoteId: null, editingNoteId: null, searchQuery: '' });
+      set({ review, activeDocId, docs: {}, reflow: {}, figureViewer: null, page: activeDocId ? review.lastPage[activeDocId] ?? 1 : 1, tab: 'brief', selectedNoteId: null, editingNoteId: null, searchQuery: '' });
+      for (const doc of review.docs) void get().ensureReflow(doc.id);
       for (const doc of review.docs) {
         await loadDocFromAnywhere(review.id, doc);
         const runtime = get().docs[doc.id];
@@ -459,7 +498,7 @@ export const useStore = create<State>((set, get) => {
         if (r) db.reviews.put(r).catch(console.error);
       }
       for (const d of Object.values(get().docs)) destroyPdf(d.pdf);
-      set({ review: null, docs: {}, activeDocId: null, selectedNoteId: null, editingNoteId: null, focusMode: false, saveState: 'idle' });
+      set({ review: null, docs: {}, reflow: {}, figureViewer: null, activeDocId: null, selectedNoteId: null, editingNoteId: null, focusMode: false, saveState: 'idle', sheet: null });
       void loadReviewList(set);
     },
 
@@ -573,6 +612,58 @@ export const useStore = create<State>((set, get) => {
     },
 
     setZoom: (zoom) => set({ zoom: Math.min(3, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
+
+    setViewMode(viewMode) {
+      try {
+        localStorage.setItem('panelist.view', viewMode);
+      } catch {
+        /* ignore */
+      }
+      set({ viewMode });
+      const s = get();
+      if (viewMode === 'read' && s.activeDocId && s.review) void s.ensureReflow(s.activeDocId);
+    },
+
+    async ensureReflow(docId) {
+      const review = get().review;
+      if (!review) return;
+      const reviewId = review.id;
+      const current = get().reflow[docId];
+      if (current?.status === 'ready' && current.doc) return;
+      if (current?.status === 'processing') return; // already polling
+      const setState = (patch: Partial<ReflowState>) => set((s) => ({ reflow: { ...s.reflow, [docId]: { ...(s.reflow[docId] ?? { status: 'none' }), ...patch } } }));
+      try {
+        let status = await api.reflowStatus(reviewId, docId);
+        if (status.status === 'none' || status.status === 'error') {
+          // The PDF may still be uploading from this device; try to start, tolerate 404.
+          try {
+            status = await api.startReflow(reviewId, docId);
+          } catch {
+            setState({ status: 'none', message: 'Waiting for the PDF to finish uploading' });
+            setTimeout(() => {
+              if (get().review?.id === reviewId) void get().ensureReflow(docId);
+            }, 3000);
+            return;
+          }
+        }
+        while (status.status === 'processing') {
+          setState({ status: 'processing', done: status.done, total: status.total, message: status.message });
+          await new Promise((r) => setTimeout(r, 1200));
+          if (get().review?.id !== reviewId) return;
+          status = await api.reflowStatus(reviewId, docId);
+        }
+        if (status.status === 'ready') {
+          const doc = await api.reflowDoc(reviewId, docId);
+          setState({ status: 'ready', doc, message: undefined });
+        } else if (status.status === 'error') {
+          setState({ status: 'error', message: status.error });
+        } else setState({ status: 'none' });
+      } catch (e) {
+        setState({ status: 'error', message: e instanceof Error ? e.message : String(e) });
+      }
+    },
+
+    openFigure: (docId, figureId) => set({ figureViewer: figureId ? { docId, figureId } : null }),
 
     setFitMode(fitMode) {
       try {

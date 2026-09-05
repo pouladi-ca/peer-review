@@ -9,6 +9,7 @@ import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { Toast, BusyOverlay } from './components/Overlays';
 import { Celebrate } from './components/Celebrate';
 import { FrameworkEditor } from './components/FrameworkEditor';
+import { FigureViewerHost } from './components/reader/FigureViewer';
 
 export default function App() {
   const booted = useStore((s) => s.booted);
@@ -30,6 +31,7 @@ export default function App() {
       <CommandPalette />
       <ShortcutsHelp />
       <FrameworkEditor />
+      <FigureViewerHost />
       <BusyOverlay />
       <Celebrate />
       <Toast />

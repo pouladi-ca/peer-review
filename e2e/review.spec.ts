@@ -138,6 +138,59 @@ test('fit whole page makes each page fully visible', async ({ page }) => {
   await expect.poll(() => page.locator('.page-slot').first().evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThan(viewH);
 });
 
+test('the reading view reflows the document and notes map between views', async ({ page }) => {
+  await startWithSample(page);
+  // Tag a passage in the page view first.
+  const span = page.locator('.textLayer span').filter({ hasText: /Ischemic stroke|second leading/i }).first();
+  await span.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+  await page.locator('.sel-toolbar .sel-strength').click();
+  await expect(page.locator('.note.is-selected')).toBeVisible();
+
+  // Switch to Read: the server's reflow renders headings and paragraphs.
+  await page.getByRole('radio', { name: 'Read' }).click();
+  const content = page.locator('.read-content');
+  await expect(content).toBeVisible({ timeout: 60_000 });
+  await expect(content.locator('h2', { hasText: 'Specific Aims' })).toBeVisible();
+  // The page-view note shows as a highlight in the reading view.
+  await expect(content.locator('mark.rhl-strength')).toHaveCount(1);
+  await page.screenshot({ path: path.join(shots, '18-reading-view.png') });
+
+  // Tag in the reading view: select part of a paragraph.
+  const para = content.locator('p').filter({ hasText: /Stroke affects more than 12 million/ }).first();
+  await para.scrollIntoViewIfNeeded();
+  await para.evaluate((el) => {
+    const text = el.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 40);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+  await expect(page.locator('.sel-toolbar')).toBeVisible();
+  await page.locator('.sel-toolbar .sel-weakness').click();
+  await expect(content.locator('mark.rhl-weakness')).toHaveCount(1);
+  const note = page.locator('.note.is-selected');
+  await expect(note).toContainText(/Stroke affects/);
+  await expect(note.locator('.chip-page')).toContainText('p. 2');
+
+  // Back in the page view, the reading-view note has located rectangles on page 2.
+  await page.getByRole('radio', { name: 'Pages' }).click();
+  await expect(page.locator('.pdf-page[data-page="2"] .hl-weakness').first()).toBeAttached({ timeout: 20_000 });
+
+  // The outline in reading view uses the reflow table of contents.
+  await page.getByRole('radio', { name: 'Read' }).click();
+  await expect(page.locator('.outline-item', { hasText: 'Specific Aims' })).toBeVisible();
+});
+
 test('scoring a criterion and checking the draft preview', async ({ page }) => {
   await startWithSample(page);
   await page.locator('.panel-tab', { hasText: 'Score' }).click();
