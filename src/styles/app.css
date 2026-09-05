@@ -1239,6 +1239,14 @@ button.chip:hover {
   cursor: text;
   transform-origin: 0% 0%;
 }
+/* Text runs must sit above .endOfContent, which expands to cover the layer
+   while selecting (pdf.js's trick for extending a drag past the last word).
+   Without this, the drag lands on a user-select: none element and nothing
+   gets selected. */
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+}
 .textLayer span.markedContent {
   top: 0;
   height: 0;

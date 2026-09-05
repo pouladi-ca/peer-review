@@ -67,6 +67,31 @@ test('tagging a selection creates a note and a draft bullet', async ({ page }) =
   await page.screenshot({ path: path.join(shots, '04-notes.png') });
 });
 
+test('dragging with the mouse selects text and shows the tag toolbar', async ({ page }) => {
+  await startWithSample(page);
+  const spans = page.locator('.pdf-page[data-page="1"] .textLayer span');
+  await expect.poll(() => spans.count()).toBeGreaterThan(20);
+  const a = (await spans.nth(12).boundingBox())!;
+  const z = (await spans.nth(16).boundingBox())!;
+  await page.mouse.move(a.x + 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(z.x + z.width - 2, z.y + z.height / 2, { steps: 12 });
+  await page.mouse.up();
+  const selected = await page.evaluate(() => window.getSelection()?.toString().trim().length ?? 0);
+  expect(selected).toBeGreaterThan(5);
+  await expect(page.locator('.sel-toolbar')).toBeVisible();
+  await page.keyboard.press('w');
+  await expect(page.locator('.panel-tab', { hasText: 'Notes' }).locator('.count')).toHaveText('1');
+  await expect(page.locator('.note.is-selected')).toContainText(/\S/);
+});
+
+test('pressing a tag key with nothing selected shows a hint', async ({ page }) => {
+  await startWithSample(page);
+  await page.locator('.viewer-scroll').click({ position: { x: 20, y: 20 } });
+  await page.keyboard.press('s');
+  await expect(page.locator('.toast')).toContainText(/Select a passage/);
+});
+
 test('scoring a criterion and checking the draft preview', async ({ page }) => {
   await startWithSample(page);
   await page.locator('.panel-tab', { hasText: 'Score' }).click();

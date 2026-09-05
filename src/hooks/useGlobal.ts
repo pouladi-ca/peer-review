@@ -35,6 +35,14 @@ export function useGlobalShortcuts() {
         return;
       }
       if (meta) return;
+      // Tagging keys with nothing selected: explain instead of staying silent.
+      if (/^[swqn]$/i.test(e.key) && !e.altKey) {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+          s.notify('Select a passage in the document first, then press S, W, Q, or N to tag it.', 'info');
+          return;
+        }
+      }
       switch (e.key) {
         case '?':
           e.preventDefault();
