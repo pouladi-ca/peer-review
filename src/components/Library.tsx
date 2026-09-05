@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
-import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput } from 'lucide-react';
+import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { getFramework } from '../lib/frameworks';
 import { useAllFrameworks } from '../hooks/useFramework';
@@ -17,6 +17,7 @@ export function Library() {
   const deleteReview = useStore((s) => s.deleteReview);
   const importReview = useStore((s) => s.importReview);
   const notify = useStore((s) => s.notify);
+  const sync = useStore((s) => s.sync);
   const [frameworkId, setFrameworkId] = useState<string>('auto');
   const frameworks = useAllFrameworks();
   const [dragging, setDragging] = useState(false);
@@ -72,7 +73,14 @@ export function Library() {
       <header className="library-top">
         <Wordmark size="m" />
         <span className="library-tag">
-          <Lock size={12} /> Private by design: nothing leaves this browser
+          <Lock size={12} /> Password protected, synced across your devices
+          <span className={`sync-state sync-${sync.state}`} title={sync.message ?? ''}>
+            {sync.state === 'syncing' ? <RefreshCw size={12} className="spin" /> : sync.state === 'offline' || sync.state === 'error' ? <CloudOff size={12} /> : <Cloud size={12} />}
+            {sync.state === 'syncing' ? 'Syncing' : sync.state === 'offline' ? 'Offline' : sync.state === 'error' ? 'Sync error' : sync.pending ? `${sync.pending} pending` : 'Synced'}
+          </span>
+          <button type="button" className="btn btn-ghost btn-s" onClick={() => useStore.getState().signOut()} title="Sign out of this device">
+            <LogOut size={13} /> Sign out
+          </button>
         </span>
       </header>
 
@@ -208,7 +216,7 @@ export function Library() {
           </div>
         </section>
       </main>
-      <footer className="library-foot">Applications are confidential. Panelist stores everything in this browser only and never contacts a server.</footer>
+      <footer className="library-foot">Applications are confidential. Panelist keeps them on your own password-protected server and syncs to every device you sign in on.</footer>
     </div>
   );
 }

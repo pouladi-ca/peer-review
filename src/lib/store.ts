@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { produce } from 'immer';
 import { nanoid } from 'nanoid';
 import { db } from './db';
+import { api, onUnauthorized } from './api';
+import { SyncEngine, deviceId, type SyncStatus } from './sync/engine';
 import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef } from './frameworks';
 import { getSetting, setSetting } from './db';
 import { extractAllPages, loadPdf, repairLigatures, type PDFDocumentProxy } from './pdf';
@@ -77,6 +79,9 @@ interface State {
   /** Bumped whenever the set of frameworks changes so views re-resolve them. */
   frameworksVersion: number;
   frameworkEditor: { open: boolean; id?: string };
+  /** null while the session is being checked, then whether the reviewer is signed in. */
+  authed: boolean | null;
+  sync: SyncStatus;
 
   boot(): Promise<void>;
   createReview(files: File[], opts?: { frameworkId?: string }): Promise<string>;
@@ -113,6 +118,10 @@ interface State {
   deleteCustomFramework(id: string): Promise<boolean>;
   openFrameworkEditor(id?: string): void;
   closeFrameworkEditor(): void;
+  /** After a successful login: load data and start syncing. */
+  signedIn(): Promise<void>;
+  signOut(everywhere?: boolean): Promise<void>;
+  syncNow(): Promise<void>;
 }
 
 function destroyPdf(pdf?: PDFDocumentProxy): void {
@@ -168,6 +177,14 @@ function applyTheme(theme: Theme) {
   else root.setAttribute('data-theme', theme);
 }
 
+let engine: SyncEngine | null = null;
+
+/** Load every review from the local database into the list, newest first. */
+async function loadReviewList(set: (partial: Partial<State>) => void): Promise<void> {
+  const reviews = await db.reviews.orderBy('updatedAt').reverse().toArray();
+  set({ reviews });
+}
+
 export const useStore = create<State>((set, get) => {
   const scheduleSave = () => {
     if (saveTimer) clearTimeout(saveTimer);
@@ -209,6 +226,63 @@ export const useStore = create<State>((set, get) => {
     }
   };
 
+  const ensureEngine = (): SyncEngine => {
+    if (engine) return engine;
+    engine = new SyncEngine({
+      currentReview: () => get().review,
+      onStatus: (status) => set({ sync: status }),
+      onAccountChanged: (defs) => {
+        setCustomFrameworks(defs);
+        set((s) => ({ customFrameworks: defs, frameworksVersion: s.frameworksVersion + 1 }));
+      },
+      onReviewChanged: (id, review) => {
+        const s = get();
+        if (review === null) {
+          set({ reviews: s.reviews.filter((r) => r.id !== id) });
+          if (s.review?.id === id) {
+            get().closeReview();
+            get().notify('This review was deleted on another device.', 'info');
+          }
+          return;
+        }
+        const exists = s.reviews.some((r) => r.id === id);
+        set({ reviews: (exists ? s.reviews.map((r) => (r.id === id ? review : r)) : [review, ...s.reviews]).sort((a, b) => b.updatedAt - a.updatedAt) });
+        if (s.review?.id === id) {
+          set({ review });
+          // A document added elsewhere: fetch and open it.
+          for (const d of review.docs) if (!get().docs[d.id]) void loadDocFromAnywhere(review.id, d);
+        }
+      },
+    });
+    return engine;
+  };
+
+  /** Load a document's PDF from local storage, or download it from the server. */
+  const loadDocFromAnywhere = async (reviewId: string, doc: DocMeta): Promise<void> => {
+    let file = await db.files.get(doc.id);
+    if (!file) {
+      set((s) => ({ docs: { ...s.docs, [doc.id]: { id: doc.id, pages: [], outline: [], facts: {}, status: 'loading', progress: 0 } } }));
+      try {
+        const blob = await api.downloadFile(reviewId, doc.id);
+        file = { id: doc.id, reviewId, name: doc.name, blob };
+        await db.files.put(file);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        set((s) => ({ docs: { ...s.docs, [doc.id]: { id: doc.id, pages: [], outline: [], facts: {}, status: 'error', progress: 0, error: `${msg} Open this review on the device that added the PDF so it can finish uploading.` } } }));
+        return;
+      }
+    }
+    await loadRuntimeDoc(doc.id, file.blob);
+    const pdf = get().docs[doc.id]?.pdf;
+    if (pdf && get().review?.docs.find((d) => d.id === doc.id)?.pages !== pdf.numPages) {
+      get().update((r) => {
+        const d = r.docs.find((x) => x.id === doc.id);
+        if (d) d.pages = pdf.numPages;
+      });
+    }
+  };
+
+
   return {
     booted: false,
     reviews: [],
@@ -236,20 +310,81 @@ export const useStore = create<State>((set, get) => {
     customFrameworks: [],
     frameworksVersion: 0,
     frameworkEditor: { open: false },
+    authed: null,
+    sync: { state: 'idle', pending: 0 },
 
     async boot() {
       applyTheme(get().theme);
+      onUnauthorized(() => {
+        if (get().authed !== false) {
+          engine?.stop();
+          set({ authed: false, review: null, docs: {}, activeDocId: null });
+        }
+      });
+      let authed: boolean;
+      try {
+        authed = await api.session();
+      } catch {
+        // Server unreachable: allow the cached copy only on a device that has signed in before.
+        let remembered = false;
+        try {
+          remembered = localStorage.getItem('panelist.authed') === '1';
+        } catch {
+          /* ignore */
+        }
+        authed = remembered;
+        if (remembered) set({ sync: { state: 'offline', pending: 0, message: 'Server unreachable' } });
+      }
+      if (!authed) {
+        set({ authed: false, booted: true });
+        return;
+      }
+      await get().signedIn();
+    },
+
+    async signedIn() {
+      try {
+        localStorage.setItem('panelist.authed', '1');
+      } catch {
+        /* ignore */
+      }
+      set({ authed: true });
       try {
         const defs = await getSetting<CustomFrameworkDef[]>('customFrameworks', []);
         setCustomFrameworks(defs);
         set((s) => ({ customFrameworks: defs, frameworksVersion: s.frameworksVersion + 1 }));
-        const reviews = await db.reviews.orderBy('updatedAt').reverse().toArray();
-        set({ reviews, booted: true });
+        await loadReviewList(set);
+        set({ booted: true });
       } catch (e) {
         console.error(e);
         set({ booted: true });
         get().notify('Browser storage is unavailable; your work will not persist.', 'error');
       }
+      void ensureEngine().start();
+    },
+
+    async signOut(everywhere = false) {
+      try {
+        if (everywhere) await api.logoutEverywhere();
+        else await api.logout();
+      } catch {
+        /* the cookie may already be gone */
+      }
+      engine?.stop();
+      engine = null;
+      try {
+        localStorage.removeItem('panelist.authed');
+      } catch {
+        /* ignore */
+      }
+      // Nothing confidential stays on a signed-out device; sync restores it after sign-in.
+      await Promise.all([db.reviews.clear(), db.files.clear(), db.outbox.clear(), db.syncstate.clear(), db.settings.delete('sync.cursor')]);
+      for (const d of Object.values(get().docs)) destroyPdf(d.pdf);
+      set({ authed: false, review: null, docs: {}, activeDocId: null, reviews: [], selectedNoteId: null, editingNoteId: null, focusMode: false });
+    },
+
+    async syncNow() {
+      await ensureEngine().sync();
     },
 
     async createReview(files, opts = {}) {
@@ -264,6 +399,14 @@ export const useStore = create<State>((set, get) => {
       }
       await db.reviews.put(review);
       set((s) => ({ reviews: [review, ...s.reviews], review, activeDocId: review.docs[0].id, page: 1, tab: 'brief', docs: {}, selectedNoteId: null, editingNoteId: null }));
+      void ensureEngine().recordChanges(null, review);
+      // Upload the PDFs so other devices can open this review; extraction proceeds meanwhile.
+      const uploads = review.docs.map((doc, i) =>
+        api.uploadFile(review.id, doc.id, files[i], (f) => set({ busy: `Uploading ${doc.name} (${Math.round(f * 100)}%)…` })).catch((e) => {
+          console.error(e);
+          get().notify(`${doc.name} could not be uploaded yet; it will stay on this device until it can.`, 'error');
+        }),
+      );
       for (const [i, doc] of review.docs.entries()) {
         const res = await loadRuntimeDoc(doc.id, files[i]);
         const pdf = get().docs[doc.id]?.pdf;
@@ -281,6 +424,7 @@ export const useStore = create<State>((set, get) => {
         });
       }
       set({ busy: null });
+      void Promise.all(uploads);
       return review.id;
     },
 
@@ -293,15 +437,11 @@ export const useStore = create<State>((set, get) => {
       const activeDocId = review.docs[0]?.id ?? null;
       set({ review, activeDocId, docs: {}, page: activeDocId ? review.lastPage[activeDocId] ?? 1 : 1, tab: 'brief', selectedNoteId: null, editingNoteId: null, searchQuery: '' });
       for (const doc of review.docs) {
-        const file = await db.files.get(doc.id);
-        if (!file) {
-          set((s) => ({ docs: { ...s.docs, [doc.id]: { id: doc.id, pages: [], outline: [], facts: {}, status: 'error', progress: 0, error: 'The PDF for this document is missing from storage.' } } }));
-          continue;
-        }
-        const res = await loadRuntimeDoc(doc.id, file.blob);
-        if (res && doc.role === 'application' && Object.keys(get().review?.facts ?? {}).length === 0) {
+        await loadDocFromAnywhere(review.id, doc);
+        const runtime = get().docs[doc.id];
+        if (runtime?.status === 'ready' && doc.role === 'application' && Object.keys(get().review?.facts ?? {}).length === 0) {
           get().update((r) => {
-            r.facts = res.facts;
+            r.facts = runtime.facts;
           });
         }
       }
@@ -316,13 +456,16 @@ export const useStore = create<State>((set, get) => {
       }
       for (const d of Object.values(get().docs)) destroyPdf(d.pdf);
       set({ review: null, docs: {}, activeDocId: null, selectedNoteId: null, editingNoteId: null, focusMode: false, saveState: 'idle' });
-      get().boot();
+      void loadReviewList(set);
     },
 
     async deleteReview(id) {
       await db.files.where('reviewId').equals(id).delete();
       await db.reviews.delete(id);
+      await db.syncstate.where('reviewId').equals(id).delete();
       set((s) => ({ reviews: s.reviews.filter((r) => r.id !== id) }));
+      void ensureEngine().recordReviewDeleted(id);
+      api.deleteReview(id).catch(() => undefined);
     },
 
     async addDocument(file, role) {
@@ -334,6 +477,10 @@ export const useStore = create<State>((set, get) => {
         rv.docs.push({ id, name: file.name, size: file.size, pages: 0, addedAt: Date.now(), role });
       });
       set({ activeDocId: id, page: 1 });
+      api.uploadFile(r.id, id, file).catch((e) => {
+        console.error(e);
+        get().notify(`${file.name} could not be uploaded yet.`, 'error');
+      });
       await loadRuntimeDoc(id, file);
       const pdf = get().docs[id]?.pdf;
       get().update((rv) => {
@@ -374,6 +521,7 @@ export const useStore = create<State>((set, get) => {
       if (next !== r) {
         set({ review: next });
         scheduleSave();
+        void ensureEngine().recordChanges(r, next);
       }
     },
 
@@ -475,15 +623,23 @@ export const useStore = create<State>((set, get) => {
     tickActive(ms) {
       const r = get().review;
       if (!r) return;
-      const next = { ...r, activeMs: r.activeMs + ms };
-      set({ review: next });
-      scheduleSave();
+      const me = deviceId();
+      get().update((rv) => {
+        const by = { ...(rv.activeByDevice ?? {}) };
+        // Migrate a pre-sync total onto this device once.
+        if (!rv.activeByDevice && rv.activeMs) by[me] = rv.activeMs;
+        by[me] = (by[me] ?? 0) + ms;
+        rv.activeByDevice = by;
+        rv.activeMs = Object.values(by).reduce((a, b) => a + b, 0);
+      });
     },
 
     async importReview(review, files) {
       for (const f of files) await db.files.put({ id: f.id, reviewId: review.id, name: f.name, blob: f.blob });
       await db.reviews.put(review);
       set((s) => ({ reviews: [review, ...s.reviews.filter((r) => r.id !== review.id)] }));
+      void ensureEngine().recordChanges(null, review);
+      for (const f of files) api.uploadFile(review.id, f.id, f.blob).catch(() => undefined);
     },
 
     async saveCustomFramework(def) {
@@ -491,6 +647,7 @@ export const useStore = create<State>((set, get) => {
       setCustomFrameworks(next);
       set((s) => ({ customFrameworks: next, frameworksVersion: s.frameworksVersion + 1 }));
       await setSetting('customFrameworks', next);
+      void ensureEngine().recordAccount(`framework:${def.id}`, next.find((d) => d.id === def.id));
       // Re-run outline detection if the open review uses this framework.
       const r = get().review;
       if (r && r.frameworkId === def.id) {
@@ -509,6 +666,7 @@ export const useStore = create<State>((set, get) => {
       setCustomFrameworks(next);
       set((s) => ({ customFrameworks: next, frameworksVersion: s.frameworksVersion + 1 }));
       await setSetting('customFrameworks', next);
+      void ensureEngine().recordAccount(`framework:${id}`, null, true);
       return true;
     },
 

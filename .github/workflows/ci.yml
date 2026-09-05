@@ -14,10 +14,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - run: npm ci
+      - name: Server tests
+        run: uv sync && uv run pytest
+        working-directory: server
       - name: Typecheck
         run: npm run typecheck
       - name: Unit tests
         run: npm test
       - name: Build
         run: npm run build
+      - name: Browser for e2e
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        run: npm run test:e2e

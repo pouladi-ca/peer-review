@@ -14,7 +14,9 @@
     "typecheck": "tsc -b",
     "predev": "node scripts/copy-pdfjs-assets.mjs",
     "prebuild": "node scripts/copy-pdfjs-assets.mjs",
-    "pretest": "node scripts/copy-pdfjs-assets.mjs"
+    "pretest": "node scripts/copy-pdfjs-assets.mjs",
+    "api": "cd server && APP_PASSWORD=${APP_PASSWORD:-panelist-dev} PANELIST_INSECURE_COOKIES=1 DATA_DIR=./data uv run uvicorn panelist.app:app --host 127.0.0.1 --port 8000 --reload",
+    "test:server": "cd server && uv run pytest"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

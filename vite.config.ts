@@ -8,6 +8,11 @@ const base = process.env.VITE_BASE ?? '/';
 export default defineConfig({
   base,
   plugins: [react()],
+  server: {
+    proxy: {
+      '/api': { target: process.env.API_ORIGIN ?? 'http://127.0.0.1:8000', changeOrigin: false },
+    },
+  },
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1200,

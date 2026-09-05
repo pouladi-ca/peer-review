@@ -109,9 +109,17 @@ export function useActiveTimer() {
 export function useUnloadGuard() {
   useEffect(() => {
     const h = (e: BeforeUnloadEvent) => {
-      if (useStore.getState().saveState === 'saving') e.preventDefault();
+      const s = useStore.getState();
+      if (s.saveState === 'saving' || s.sync.pending > 0) e.preventDefault();
+    };
+    const flush = () => {
+      if (document.visibilityState === 'hidden' && useStore.getState().authed) void useStore.getState().syncNow();
     };
     window.addEventListener('beforeunload', h);
-    return () => window.removeEventListener('beforeunload', h);
+    document.addEventListener('visibilitychange', flush);
+    return () => {
+      window.removeEventListener('beforeunload', h);
+      document.removeEventListener('visibilitychange', flush);
+    };
   }, []);
 }

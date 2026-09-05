@@ -13,10 +13,31 @@ export interface Setting {
   value: unknown;
 }
 
+/** A local change waiting to be pushed to the server. */
+export interface OutboxRow {
+  id?: number;
+  /** null for account-level records (custom frameworks) */
+  reviewId: string | null;
+  key: string;
+  data: unknown;
+  updatedAt: number;
+  deleted: boolean;
+}
+
+/** The newest timestamp this device holds for a record, for merge decisions. */
+export interface SyncStateRow {
+  id: string; // `${reviewId}|${key}` or `account|${key}`
+  reviewId: string;
+  key: string;
+  ts: number;
+}
+
 class PanelistDB extends Dexie {
   reviews!: EntityTable<Review, 'id'>;
   files!: EntityTable<StoredFile, 'id'>;
   settings!: EntityTable<Setting, 'key'>;
+  outbox!: EntityTable<OutboxRow, 'id'>;
+  syncstate!: EntityTable<SyncStateRow, 'id'>;
 
   constructor() {
     super('panelist');
@@ -24,6 +45,13 @@ class PanelistDB extends Dexie {
       reviews: 'id, updatedAt',
       files: 'id, reviewId',
       settings: 'key',
+    });
+    this.version(2).stores({
+      reviews: 'id, updatedAt',
+      files: 'id, reviewId',
+      settings: 'key',
+      outbox: '++id, reviewId',
+      syncstate: 'id, reviewId',
     });
   }
 }

@@ -31,3 +31,11 @@ coverage
 
 # pdf.js runtime assets (copied from node_modules by scripts/copy-pdfjs-assets.mjs)
 /public/pdfjs
+
+# Server
+server/.venv
+server/data
+server/.pytest_cache
+__pycache__/
+*.pyc
+/data

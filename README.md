@@ -6,10 +6,10 @@ You have been asked to review a grant application. The funding agency sent you a
 PDF. Panelist is where you read it, mark it up, score it against your agency's
 rubric, and leave with a critique that is already written.
 
-Everything runs in your browser. The application PDF never leaves your machine:
-there is no server, no upload, no account. That matters, because most agencies
-treat applications as confidential and prohibit uploading them to third-party
-services, including generative-AI tools.
+It runs as a small private server you own (one Docker image on fly.io or any host)
+with the app served from it. Sign in with a password on each device and every review,
+note, score, and PDF syncs between them: start on a phone, continue on a laptop at the
+same page. Applications never go to a third party.
 
 ![The Brief panel, with the application on the left and detected facts on the right](screenshots/02-brief.png)
 
@@ -73,11 +73,17 @@ mechanical weight off that process so your attention stays on the science.
 - **Gets out of your way.** A command palette (**⌘K**), full keyboard control,
   focus mode, and light or dark themes.
 
-## Privacy
+## Privacy and sync
 
-Panelist is a static site with no backend. Your PDFs and notes are stored only
-in your browser and are never transmitted anywhere. Clearing site data or using
-a private window removes them, so use the JSON backup to keep a copy.
+Panelist is a single-user app behind a password. Your PDFs, notes, and scores live
+on your own server (SQLite plus files on a persistent volume) and in a local cache on
+each signed-in device. Sync is on by default: edits are saved locally first, queued,
+and pushed within a second; other devices pick them up within a few seconds while
+open, and on focus. Each score, note, checklist item, and draft field is its own
+record, so two devices editing different parts of a review never overwrite each
+other; pages read are merged as a set, and active time adds up per device.
+Signing out of a device clears its local copy. *Sign out everywhere* invalidates
+every device's session.
 
 ## Keyboard shortcuts
 
@@ -95,13 +101,17 @@ a private window removes them, so use the JSON backup to keep a copy.
 
 ## Development
 
+Two processes: the API (Python 3.12, FastAPI, SQLite; managed with `uv`) and the
+Vite dev server, which proxies `/api` to it.
+
 ```bash
 npm install
-npm run dev          # start the dev server
-npm run build        # typecheck and build for production
-npm run preview      # serve the production build
+npm run api          # API on :8000 (password "panelist-dev" unless APP_PASSWORD is set)
+npm run dev          # app on :5173
+npm run build        # typecheck and build the SPA
 npm test             # unit tests (Vitest)
-npm run test:e2e     # end-to-end tests (Playwright)
+npm run test:server  # API tests (pytest)
+npm run test:e2e     # end-to-end (Playwright) against a throwaway server and data dir
 ```
 
 The end-to-end tests drive the real app against a bundled, fictional sample
@@ -111,8 +121,9 @@ custom frameworks, and export.
 
 ### Stack
 
-React 19, TypeScript, Vite, Zustand, Dexie (IndexedDB), pdf.js for rendering,
-and the `docx` library for Word export. No network calls at runtime.
+Client: React 19, TypeScript, Vite, Zustand, Dexie (IndexedDB cache and outbox),
+pdf.js for rendering, `docx` for Word export. Server: FastAPI, SQLite in WAL mode,
+signed session cookies, a CSRF and body-size guard in front of every API route.
 
 ### The sample application
 
@@ -122,9 +133,18 @@ heuristics and contains no real research or personal data.
 
 ## Deployment
 
-The app is a static bundle in `dist/`. The included GitHub Actions workflow
-builds it and deploys to GitHub Pages, setting the correct base path for a
-project site automatically.
+One Docker image builds the SPA and serves it with the API. `fly.toml` is set up for
+fly.io with a persistent volume at `/data`; the machine suspends when idle and wakes
+on the first request.
+
+```bash
+fly launch --no-deploy                                   # once
+fly secrets set APP_PASSWORD='…' SESSION_SECRET="$(openssl rand -base64 48)"
+fly deploy --remote-only
+```
+
+Any host that runs the container with `APP_PASSWORD` set and a volume mounted at
+`DATA_DIR` works the same way.
 
 ## License
 

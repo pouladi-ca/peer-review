@@ -89,6 +89,9 @@ export function CommandPalette() {
     list.push({ id: 'theme-dark', label: 'Theme: dark', group: 'Appearance', run: () => (s.setTheme('dark'), close()) });
     list.push({ id: 'theme-system', label: 'Theme: follow system', group: 'Appearance', run: () => (s.setTheme('system'), close()) });
     list.push({ id: 'frameworks', label: 'Manage review frameworks', group: 'Help', run: () => (close(), s.openFrameworkEditor()) });
+    list.push({ id: 'sync', label: 'Sync now', group: 'Account', run: () => (close(), void s.syncNow()) });
+    list.push({ id: 'signout', label: 'Sign out of this device', group: 'Account', run: () => (close(), void s.signOut()) });
+    list.push({ id: 'signout-all', label: 'Sign out everywhere', group: 'Account', run: () => (close(), void s.signOut(true)) });
     list.push({ id: 'help', label: 'Keyboard shortcuts', group: 'Help', hint: '?', run: () => (close(), s.setHelp(true)) });
     return list;
   }, [review, doc, open, fwVersion]);

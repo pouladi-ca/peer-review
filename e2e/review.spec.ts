@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { login } from './helpers';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,8 +7,7 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const shots = path.join(dir, '..', 'screenshots');
 
 async function startWithSample(page: Page) {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Read closely/i })).toBeVisible();
+  await login(page);
   await page.getByRole('button', { name: 'Try a sample application', exact: true }).click();
   // The workspace top bar appears once the review opens.
   await expect(page.locator('.topbar')).toBeVisible({ timeout: 30_000 });
@@ -16,9 +16,22 @@ async function startWithSample(page: Page) {
   await page.waitForTimeout(1500);
 }
 
-test('library renders and opens the sample application', async ({ page }) => {
+test('the app is gated behind login', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByLabel('Password')).toBeVisible();
+  await page.getByLabel('Password').fill('wrong');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('alert')).toContainText(/not right/i);
+  await page.getByLabel('Password').fill('e2e-password');
+  await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: /Read closely/i })).toBeVisible();
+  // The session persists across a reload.
+  await page.reload();
+  await expect(page.getByRole('heading', { name: /Read closely/i })).toBeVisible();
+});
+
+test('library renders and opens the sample application', async ({ page }) => {
+  await login(page);
   await page.screenshot({ path: path.join(shots, '01-library.png'), fullPage: false });
   await startWithSample(page);
   // Framework should be auto-detected as NIH from the sample text.

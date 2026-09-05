@@ -1,0 +1,138 @@
+/**
+ * Thin fetch layer for the Panelist server. Same-origin, cookie auth.
+ * A 401 anywhere flips the app to the login gate via `onUnauthorized`.
+ */
+
+export class ApiError extends Error {
+  status: number;
+  retryAfter?: number;
+  constructor(status: number, message: string, retryAfter?: number) {
+    super(message);
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
+
+let unauthorized: (() => void) | null = null;
+export function onUnauthorized(handler: () => void): void {
+  unauthorized = handler;
+}
+
+async function request<T>(method: string, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    credentials: 'same-origin',
+    headers: body !== undefined && !(body instanceof Blob) ? { 'Content-Type': 'application/json', ...(init.headers ?? {}) } : init.headers,
+    body: body === undefined ? undefined : body instanceof Blob ? body : JSON.stringify(body),
+    ...init,
+  });
+  // A 401 from any route but login means the session is gone; from login it is a wrong password.
+  if (res.status === 401 && path !== '/api/login') {
+    unauthorized?.();
+    throw new ApiError(401, 'Not signed in');
+  }
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const data = (await res.json()) as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      /* not JSON */
+    }
+    const retry = Number(res.headers.get('Retry-After') ?? '');
+    throw new ApiError(res.status, message, Number.isFinite(retry) ? retry : undefined);
+  }
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+export interface RecordOut {
+  review_id: string;
+  key: string;
+  data: unknown;
+  updated_at: number;
+  deleted: boolean;
+}
+export interface AccountRecordOut {
+  key: string;
+  data: unknown;
+  updated_at: number;
+  deleted: boolean;
+}
+export interface ReviewOut {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  deleted: boolean;
+}
+export interface Changes {
+  seq: number;
+  reviews: ReviewOut[];
+  records: RecordOut[];
+  account: AccountRecordOut[];
+}
+export interface ChangesIn {
+  reviews?: ReviewOut[];
+  records?: RecordOut[];
+  account?: AccountRecordOut[];
+}
+
+export const api = {
+  /** True when a valid session cookie is present. Throws on network failure. */
+  async session(): Promise<boolean> {
+    const res = await fetch('/api/me', { credentials: 'same-origin' });
+    if (res.status === 401) return false;
+    if (!res.ok) throw new ApiError(res.status, 'Server error');
+    return true;
+  },
+  login: (password: string) => request<{ ok: boolean }>('POST', '/api/login', { password }),
+  logout: () => request<{ ok: boolean }>('POST', '/api/logout', {}),
+  logoutEverywhere: () => request<{ ok: boolean }>('POST', '/api/logout-everywhere', {}),
+  pull: (since: number) => request<Changes>('GET', `/api/changes?since=${since}`),
+  push: (changes: ChangesIn) => request<{ ok: boolean; applied: number; seq: number }>('POST', '/api/changes', changes),
+  deleteReview: (id: string) => request<{ ok: boolean }>('DELETE', `/api/reviews/${encodeURIComponent(id)}`),
+  fileExists: async (reviewId: string, docId: string): Promise<boolean> => {
+    const res = await fetch(`/api/reviews/${encodeURIComponent(reviewId)}/files/${encodeURIComponent(docId)}`, { method: 'HEAD', credentials: 'same-origin' });
+    if (res.status === 401) unauthorized?.();
+    return res.ok;
+  },
+  /** Upload a PDF with progress, via XHR because fetch cannot report upload progress. */
+  uploadFile(reviewId: string, docId: string, file: Blob, onProgress?: (fraction: number) => void): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', `/api/reviews/${encodeURIComponent(reviewId)}/files/${encodeURIComponent(docId)}`);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('Content-Type', 'application/pdf');
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+      };
+      xhr.onload = () => {
+        if (xhr.status === 401) {
+          unauthorized?.();
+          reject(new ApiError(401, 'Not signed in'));
+        } else if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else {
+          let msg = `Upload failed (${xhr.status})`;
+          try {
+            msg = (JSON.parse(xhr.responseText) as { error?: string }).error ?? msg;
+          } catch {
+            /* ignore */
+          }
+          reject(new ApiError(xhr.status, msg));
+        }
+      };
+      xhr.onerror = () => reject(new ApiError(0, 'Network error during upload'));
+      xhr.send(file);
+    });
+  },
+  async downloadFile(reviewId: string, docId: string): Promise<Blob> {
+    const res = await fetch(`/api/reviews/${encodeURIComponent(reviewId)}/files/${encodeURIComponent(docId)}`, { credentials: 'same-origin' });
+    if (res.status === 401) {
+      unauthorized?.();
+      throw new ApiError(401, 'Not signed in');
+    }
+    if (!res.ok) throw new ApiError(res.status, 'That PDF is not on the server yet.');
+    return res.blob();
+  },
+};

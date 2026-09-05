@@ -1,0 +1,10 @@
+node_modules
+dist
+server/.venv
+server/data
+server/.pytest_cache
+data
+screenshots
+test-results
+playwright-report
+.git

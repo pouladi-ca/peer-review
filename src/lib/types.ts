@@ -78,7 +78,10 @@ export interface Review {
   facts: Partial<QuickFacts>;
   visited: Record<string, number[]>;
   lastPage: Record<string, number>;
+  /** Total active time across devices (derived from activeByDevice when syncing). */
   activeMs: number;
+  /** Active time per device id, so devices add rather than overwrite. */
+  activeByDevice?: Record<string, number>;
   /** Criterion the reviewer is currently focusing on; new notes default to it. */
   focusCriterionId?: string;
 }
