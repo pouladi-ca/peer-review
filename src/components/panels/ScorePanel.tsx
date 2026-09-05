@@ -4,7 +4,7 @@ import { ChevronDown, Target, AlertTriangle, MapPin } from 'lucide-react';
 import { useStore } from '../../lib/store';
 import { criterionScale, scoreLabel, type Criterion, type ScaleDef } from '../../lib/frameworks';
 import type { Annotation } from '../../lib/types';
-import { AutoTextarea, KindIcon, KIND_ORDER } from '../ui';
+import { AutoTextarea, DictateButton, KindIcon, KIND_ORDER } from '../ui';
 import { clip } from '../../lib/format';
 
 export function ScorePanel() {
@@ -213,6 +213,7 @@ function CriterionCard({ criterion: c, compact }: { criterion: Criterion; compac
         onChange={(e) => set({ comment: e.target.value })}
         aria-label={`${c.name} rationale`}
       />
+      {!compact && <DictateButton onText={(t) => set({ comment: score?.comment ? `${score.comment.replace(/\s+$/, '')} ${t}` : t.charAt(0).toUpperCase() + t.slice(1) })} />}
       {!compact && <LinkedNotes notes={notes} />}
       {compact && notes.length > 0 && <LinkedNotes notes={notes} />}
     </section>
@@ -272,6 +273,13 @@ function OverallCard({ consistency }: { consistency: string | null }) {
           })
         }
         aria-label="Overall rationale"
+      />
+      <DictateButton
+        onText={(t) =>
+          update((r) => {
+            r.overall.comment = r.overall.comment ? `${r.overall.comment.replace(/\s+$/, '')} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
+          })
+        }
       />
     </section>
   );

@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, type ComponentProps, type ReactNode } from 'react';
-import { ThumbsUp, ThumbsDown, CircleHelp, StickyNote, type LucideIcon } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, CircleHelp, StickyNote, Mic, type LucideIcon } from 'lucide-react';
+import { useDictation } from '../hooks/useDictation';
 import type { NoteKind } from '../lib/types';
 
 export function ProgressRing({ value, size = 28, stroke = 3, label }: { value: number; size?: number; stroke?: number; label?: ReactNode }) {
@@ -132,6 +133,22 @@ export function Wordmark({ size = 'm' }: { size?: 's' | 'm' | 'l' }) {
         </svg>
       </span>
       Panelist
+    </span>
+  );
+}
+
+/** A microphone button that appends dictated text to a field. Hidden where speech recognition is unavailable. */
+export function DictateButton({ onText, compact }: { onText: (text: string) => void; compact?: boolean }) {
+  const d = useDictation(onText);
+  if (!d.available) return null;
+  return (
+    <span className="dictate">
+      <button type="button" className={`dictate-btn ${d.listening ? 'is-live' : ''}`} onClick={d.toggle} aria-pressed={d.listening} title={d.listening ? 'Stop dictation' : 'Dictate'}>
+        {d.listening ? <span className="rec-dot" /> : <Mic size={compact ? 13 : 14} />}
+        {!compact && <span>{d.listening ? 'Stop' : 'Dictate'}</span>}
+      </button>
+      {(d.listening || d.interim) && <span className="dictate-interim" aria-live="polite">{d.interim || 'Listening…'}</span>}
+      {d.error && <span className="dictate-error">{d.error}</span>}
     </span>
   );
 }

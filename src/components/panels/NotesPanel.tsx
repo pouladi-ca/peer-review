@@ -3,7 +3,7 @@ import { useFramework } from '../../hooks/useFramework';
 import { Highlighter, Trash2, MapPin, ArrowDownUp } from 'lucide-react';
 import { useStore } from '../../lib/store';
 import type { Annotation, NoteKind } from '../../lib/types';
-import { AutoTextarea, EmptyState, IconButton, KIND_META, KIND_ORDER, KindIcon, Segmented } from '../ui';
+import { AutoTextarea, DictateButton, EmptyState, IconButton, KIND_META, KIND_ORDER, KindIcon, Segmented } from '../ui';
 import { clip } from '../../lib/format';
 
 export function NotesPanel() {
@@ -181,6 +181,8 @@ function NoteCard({ note }: { note: Annotation }) {
         }}
       />
       <footer className="note-foot">
+        <DictateButton compact onText={(t) => updateAnnotation(note.id, { comment: note.comment ? `${note.comment.replace(/\s+$/, '')} ${t}` : t.charAt(0).toUpperCase() + t.slice(1) })} />
+        <span className="grow" />
         <select value={note.criterionId ?? ''} onChange={(e) => updateAnnotation(note.id, { criterionId: e.target.value || undefined })} aria-label="Criterion" className={note.criterionId ? '' : 'is-empty'}>
           <option value="">Unassigned</option>
           {fw.criteria.map((c) => (

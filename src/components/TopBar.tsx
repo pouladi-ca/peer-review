@@ -26,8 +26,8 @@ export function TopBar() {
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <button type="button" className="btn btn-ghost btn-s" onClick={() => useStore.getState().closeReview()} title="Back to your reviews">
-          <ArrowLeft size={15} /> Library
+        <button type="button" className="btn btn-ghost btn-s back-btn" onClick={() => useStore.getState().closeReview()} title="Back to your reviews">
+          <ArrowLeft size={15} /> <span>Library</span>
         </button>
         <Wordmark size="s" />
         <input
@@ -85,7 +85,7 @@ export function TopBar() {
           title={sync.message ?? (sync.pending ? `${sync.pending} change${sync.pending === 1 ? '' : 's'} waiting to sync` : sync.lastSync ? `Synced ${new Date(sync.lastSync).toLocaleTimeString()}` : 'Sync now')}
         >
           {sync.state === 'syncing' ? <RefreshCw size={13} className="spin" /> : sync.state === 'offline' || sync.state === 'error' ? <CloudOff size={13} /> : <Cloud size={13} />}
-          {sync.state === 'syncing' ? 'Syncing' : sync.state === 'offline' ? `Offline${sync.pending ? ` · ${sync.pending}` : ''}` : sync.state === 'error' ? 'Sync error' : sync.pending ? `${sync.pending} pending` : 'Synced'}
+          <span>{sync.state === 'syncing' ? 'Syncing' : sync.state === 'offline' ? `Offline${sync.pending ? ` · ${sync.pending}` : ''}` : sync.state === 'error' ? 'Sync error' : sync.pending ? `${sync.pending} pending` : 'Synced'}</span>
         </button>
         <div className="progress-wrap" onMouseEnter={() => setShowProgress(true)} onMouseLeave={() => setShowProgress(false)}>
           <button type="button" className="progress-btn" onClick={() => setShowProgress((v) => !v)} aria-label="Review progress">

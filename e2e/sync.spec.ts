@@ -15,7 +15,9 @@ test('a review syncs between two devices', async ({ browser }) => {
   await login(pageA);
   await pageA.getByRole('button', { name: 'Try a sample application', exact: true }).click();
   await expect(pageA.locator('.pdf-canvas').first()).toBeVisible({ timeout: 30_000 });
-  const title = await pageA.locator('.title-input').inputValue();
+  // A unique title, so device B can tell this review from earlier tests' copies.
+  const title = `Sync test ${Date.now()}`;
+  await pageA.locator('.title-input').fill(title);
   // Tag a passage on device A.
   const span = pageA.locator('.textLayer span').filter({ hasText: /stroke|astrocyte|repair/i }).first();
   await span.evaluate((el) => {
@@ -33,7 +35,7 @@ test('a review syncs between two devices', async ({ browser }) => {
   // Device B signs in and sees the review in its library.
   await login(pageB);
   // Newest first: the review this test just created is the first matching card.
-  const card = pageB.locator('.review-card', { hasText: title.slice(0, 30) }).first();
+  const card = pageB.locator('.review-card', { hasText: title });
   await expect(card).toBeVisible({ timeout: 20_000 });
   await card.locator('.review-card-main').click();
   // The PDF was downloaded from the server and the note is present.

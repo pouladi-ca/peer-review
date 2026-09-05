@@ -10,6 +10,7 @@ import { PdfPage } from './PdfPage';
 import { SelectionToolbar, type PendingSelection } from './SelectionToolbar';
 import { IconButton, KIND_META } from '../ui';
 import { isTyping } from '../../hooks/useGlobal';
+import { isTouchLike } from '../../hooks/useMedia';
 
 const GAP = 18;
 const PAD = 24;
@@ -204,6 +205,22 @@ export function PdfViewer() {
     setTimeout(readSelection, 0);
   }, [readSelection]);
 
+  // Touch devices adjust a selection by dragging its handles, which fires no pointer
+  // event on the container; follow `selectionchange` instead, debounced.
+  useEffect(() => {
+    if (!isTouchLike()) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onChange = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(readSelection, 350);
+    };
+    document.addEventListener('selectionchange', onChange);
+    return () => {
+      document.removeEventListener('selectionchange', onChange);
+      if (timer) clearTimeout(timer);
+    };
+  }, [readSelection]);
+
   const onClickPage = useCallback(
     (e: React.MouseEvent) => {
       const sel = window.getSelection();
@@ -293,6 +310,7 @@ export function PdfViewer() {
         ref={scrollRef}
         onScroll={onScroll}
         onMouseUp={onMouseUp}
+        onTouchEnd={() => setTimeout(readSelection, 250)}
         onKeyUp={(e) => e.shiftKey && onMouseUp()}
         onClick={onClickPage}
         onMouseDown={(e) => {

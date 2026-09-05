@@ -82,6 +82,8 @@ interface State {
   /** null while the session is being checked, then whether the reviewer is signed in. */
   authed: boolean | null;
   sync: SyncStatus;
+  /** Phones: which sheet is open over the document. */
+  sheet: 'nav' | 'panel' | null;
 
   boot(): Promise<void>;
   createReview(files: File[], opts?: { frameworkId?: string }): Promise<string>;
@@ -119,6 +121,7 @@ interface State {
   openFrameworkEditor(id?: string): void;
   closeFrameworkEditor(): void;
   /** After a successful login: load data and start syncing. */
+  setSheet(sheet: 'nav' | 'panel' | null): void;
   signedIn(): Promise<void>;
   signOut(everywhere?: boolean): Promise<void>;
   syncNow(): Promise<void>;
@@ -312,6 +315,7 @@ export const useStore = create<State>((set, get) => {
     frameworkEditor: { open: false },
     authed: null,
     sync: { state: 'idle', pending: 0 },
+    sheet: null,
 
     async boot() {
       applyTheme(get().theme);
@@ -531,7 +535,7 @@ export const useStore = create<State>((set, get) => {
       get().update((r) => {
         r.annotations.push({ ...a, comment: a.comment ?? '', id, createdAt: now, updatedAt: now });
       });
-      set({ selectedNoteId: id, editingNoteId: id, tab: 'notes' });
+      set({ selectedNoteId: id, editingNoteId: id, tab: 'notes', sheet: 'panel' });
       return id;
     },
 
@@ -550,6 +554,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     setTab: (tab) => set({ tab }),
+    setSheet: (sheet) => set({ sheet }),
     setNavTab: (navTab) => set({ navTab, navOpen: true }),
 
     setPage(page) {
