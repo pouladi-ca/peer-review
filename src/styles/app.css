@@ -1978,6 +1978,19 @@ button.chip:hover {
   gap: 10px;
   align-items: flex-start;
 }
+.criterion-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.criterion-head .card-title {
+  font-size: 14.5px;
+  line-height: 1.3;
+}
+.criterion-head .card-hint {
+  margin-top: 0;
+  line-height: 1.55;
+}
 .focus-btn {
   flex-shrink: 0;
   display: inline-flex;
