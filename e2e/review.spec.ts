@@ -111,6 +111,51 @@ test('scorecard and submit-readiness reflect progress', async ({ page }) => {
   await page.screenshot({ path: path.join(shots, '11-submit-check.png') });
 });
 
+test('the document scrolls and page navigation advances', async ({ page }) => {
+  await startWithSample(page);
+  const pageNo = () => page.locator('.page-ctrl input').inputValue();
+  expect(await pageNo()).toBe('1');
+  // The scroll container must be height-constrained so the wheel scrolls it.
+  const box = await page.locator('.viewer-scroll').evaluate((el) => ({ client: el.clientHeight, scroll: el.scrollHeight }));
+  expect(box.scroll).toBeGreaterThan(box.client);
+  await page.getByRole('button', { name: /Next page/ }).click();
+  await expect.poll(pageNo).toBe('2');
+  await page.waitForTimeout(800); // let the smooth scroll settle before the user scrolls
+  await page.locator('.viewer-scroll').hover({ position: { x: 300, y: 300 } });
+  await page.mouse.wheel(0, 2500);
+  await page.waitForTimeout(300);
+  await page.mouse.wheel(0, 2500);
+  await expect.poll(pageNo, { timeout: 5000 }).not.toBe('2');
+  await page.keyboard.press('[');
+  await page.waitForTimeout(600);
+  // Landscape and portrait pages both fit the container width.
+  const widths = await page.locator('.page-slot').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
+  expect(new Set(widths).size).toBe(1);
+  const heights = await page.locator('.page-slot').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+  expect(new Set(heights).size).toBeGreaterThan(1); // mixed page sizes present
+});
+
+test('a custom framework can be created and used', async ({ page }) => {
+  await startWithSample(page);
+  await page.locator('.topbar-fw select').selectOption('__manage');
+  await expect(page.locator('.fw-editor')).toBeVisible();
+  await page.locator('.fw-create select').selectOption('generic');
+  await page.getByRole('button', { name: /Duplicate and edit/ }).click();
+  const name = page.locator('.fw-form input').first();
+  await name.fill('Foundation Rubric');
+  await page.locator('.fw-crit-name').first().fill('Scientific Merit');
+  await page.getByRole('button', { name: /Save framework/ }).click();
+  await expect(page.locator('.fw-item.is-on')).toContainText('Foundation Rubric');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.fw-editor')).toBeHidden();
+  // Select it for the review; the Score tab shows the renamed criterion.
+  const opt = await page.locator('.topbar-fw select option', { hasText: 'Foundation Rubric' }).getAttribute('value');
+  await page.locator('.topbar-fw select').selectOption(opt!);
+  await page.locator('.panel-tab', { hasText: 'Score' }).click();
+  await expect(page.locator('.criterion').first()).toContainText('Scientific Merit');
+  await page.screenshot({ path: path.join(shots, '12-custom-framework.png') });
+});
+
 test('checklist finds evidence in the sample', async ({ page }) => {
   await startWithSample(page);
   await page.locator('.panel-tab', { hasText: 'Checklist' }).click();

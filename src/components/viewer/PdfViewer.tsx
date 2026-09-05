@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useFramework } from '../../hooks/useFramework';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, PanelLeft, Loader2 } from 'lucide-react';
 import { useStore, selectActiveDoc, selectActiveMeta } from '../../lib/store';
-import { getFramework } from '../../lib/frameworks';
 import { criterionForHint, sectionAt } from '../../lib/analyze/outline';
 import { searchPages } from '../../lib/analyze/search';
 import { mergeLineRects, rectContains } from '../../lib/geometry';
@@ -32,25 +32,26 @@ export function PdfViewer() {
   const [viewH, setViewH] = useState(800);
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [flash, setFlash] = useState<{ page: number; rect: Rect; id: number } | null>(null);
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
 
   const ready = doc?.status === 'ready' && doc.pdf;
   const dims = useMemo(() => (ready ? doc.pages.map((p) => ({ w: p.width, h: p.height })) : []), [ready, doc]);
 
-  // Layout: fit the widest page to the container, then apply zoom.
-  const maxW = Math.max(1, ...dims.map((d) => d.w));
-  const baseScale = Math.max(0.2, (containerW - PAD * 2) / maxW);
-  const scale = baseScale * zoom;
+  // Layout: fit every page to the container width individually, then apply
+  // zoom. Applications often mix portrait pages with landscape budget tables or
+  // Gantt charts; per-page fitting keeps each readable at its natural width.
+  const fitW = Math.max(120, containerW - PAD * 2);
   const layout = useMemo(() => {
     let top = PAD;
     return dims.map((d) => {
+      const scale = Math.max(0.2, (fitW / Math.max(1, d.w)) * zoom);
       const w = d.w * scale;
       const h = d.h * scale;
-      const entry = { top, w, h };
+      const entry = { top, w, h, scale };
       top += h + GAP;
       return entry;
     });
-  }, [dims, scale]);
+  }, [dims, fitW, zoom]);
   const totalH = layout.length ? layout[layout.length - 1].top + layout[layout.length - 1].h + PAD : 0;
 
   useLayoutEffect(() => {
@@ -320,7 +321,7 @@ export function PdfViewer() {
                   pageNumber={i + 1}
                   width={l.w}
                   height={l.h}
-                  scale={scale}
+                  scale={l.scale}
                   visible={visibleRange.has(i + 1)}
                   annotations={annotationsByPage.get(i + 1) ?? []}
                   selectedId={selectedNoteId}

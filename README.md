@@ -26,6 +26,8 @@ mechanical weight off that process so your attention stays on the science.
 - **Reads the PDF in the browser.** Drop in the application (and any supporting
   documents) and start reading immediately, with a crisp text layer, search, an
   auto-detected section outline, and a page map that tracks what you have read.
+  Mixed portrait and landscape pages (budget tables, Gantt charts) each fit the
+  width, and non-embedded standard fonts render correctly.
 - **Detects the essentials.** Title, applicant, institution, mechanism, budget,
   duration, the specific aims, the key vocabulary, and counts of figures,
   tables, and references, all pulled from the text and editable.
@@ -34,10 +36,16 @@ mechanical weight off that process so your attention stays on the science.
   becomes a highlight in the PDF and a bullet in your draft, carrying its page
   reference. Notes attach to the criterion the section belongs to.
 - **Scores the way your agency does.** Built-in frameworks for **NIH** (2025
-  simplified and the legacy five criteria), **NSF**, **CIHR**, and **ERC**, plus
-  a general rubric, each with the correct scale, guiding questions, and an
-  overall rating. A consistency check flags when your overall score drifts from
-  your criterion scores.
+  simplified and the legacy five criteria), **NSF**, **CIHR**, **ERC**,
+  **Horizon Europe**, **NSERC Discovery**, **NHMRC Ideas**, **Wellcome**,
+  **UKRI/MRC**, and **DFG**, plus a general rubric, each with its scale, guiding
+  questions, and an overall rating. A consistency check flags when your overall
+  score drifts from your criterion scores.
+- **Works for any agency.** Open *Manage frameworks…* from the framework menu to
+  define your own criteria and scales, or duplicate a built-in rubric and edit
+  it. Custom frameworks are stored in the browser and can be exported as JSON to
+  share with co-reviewers. Many foundations and institutional competitions do
+  not match a national agency's template; this is how you review those.
 - **Keeps you honest with a checklist.** Completeness and rigor checks (power
   analysis, blinding, sex as a biological variable, data sharing, ethics, and
   more) show page references to where the application seems to address each item,
@@ -90,8 +98,9 @@ npm run test:e2e     # end-to-end tests (Playwright)
 ```
 
 The end-to-end tests drive the real app against a bundled, fictional sample
-application and verify PDF rendering, fact detection, tagging, scoring, the
-checklist, and export.
+application (which includes a landscape budget page) and verify PDF rendering,
+scrolling and page navigation, fact detection, tagging, scoring, the checklist,
+custom frameworks, and export.
 
 ### Stack
 

@@ -28,3 +28,6 @@ dist-ssr
 /playwright-report
 /e2e/.cache
 coverage
+
+# pdf.js runtime assets (copied from node_modules by scripts/copy-pdfjs-assets.mjs)
+/public/pdfjs

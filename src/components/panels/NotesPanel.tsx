@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFramework } from '../../hooks/useFramework';
 import { Highlighter, Trash2, MapPin, ArrowDownUp } from 'lucide-react';
 import { useStore } from '../../lib/store';
-import { getFramework } from '../../lib/frameworks';
 import type { Annotation, NoteKind } from '../../lib/types';
 import { AutoTextarea, EmptyState, IconButton, KIND_META, KIND_ORDER, KindIcon, Segmented } from '../ui';
 import { clip } from '../../lib/format';
@@ -11,7 +11,7 @@ export function NotesPanel() {
   const filter = useStore((s) => s.filter);
   const setFilter = useStore((s) => s.setFilter);
   const selectedNoteId = useStore((s) => s.selectedNoteId);
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   const [sort, setSort] = useState<'page' | 'recent'>('page');
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -90,7 +90,7 @@ function NoteCard({ note }: { note: Annotation }) {
   const editing = useStore((s) => s.editingNoteId === note.id);
   const updateAnnotation = useStore((s) => s.updateAnnotation);
   const deleteAnnotation = useStore((s) => s.deleteAnnotation);
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   const ta = useRef<HTMLTextAreaElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [confirm, setConfirm] = useState(false);

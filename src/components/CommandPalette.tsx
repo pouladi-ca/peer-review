@@ -18,6 +18,7 @@ export function CommandPalette() {
   const open = useStore((s) => s.paletteOpen);
   const review = useStore((s) => s.review);
   const doc = useStore(selectActiveDoc);
+  const fwVersion = useStore((s) => s.frameworksVersion);
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -85,9 +86,10 @@ export function CommandPalette() {
     list.push({ id: 'theme-light', label: 'Theme: light', group: 'Appearance', run: () => (s.setTheme('light'), close()) });
     list.push({ id: 'theme-dark', label: 'Theme: dark', group: 'Appearance', run: () => (s.setTheme('dark'), close()) });
     list.push({ id: 'theme-system', label: 'Theme: follow system', group: 'Appearance', run: () => (s.setTheme('system'), close()) });
+    list.push({ id: 'frameworks', label: 'Manage review frameworks', group: 'Help', run: () => (close(), s.openFrameworkEditor()) });
     list.push({ id: 'help', label: 'Keyboard shortcuts', group: 'Help', hint: '?', run: () => (close(), s.setHelp(true)) });
     return list;
-  }, [review, doc, open]);
+  }, [review, doc, open, fwVersion]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();

@@ -61,6 +61,8 @@ export interface Framework {
   guidance: string[];
   /** Section headings expected in the application for this agency. */
   expectedSections: string[];
+  /** True for reviewer-defined frameworks stored in the browser. */
+  custom?: boolean;
 }
 
 /* ---------- shared scales ---------- */
@@ -664,10 +666,420 @@ const GENERIC: Framework = {
   expectedSections: ['Abstract', 'Summary', 'Background', 'Aims', 'Objectives', 'Methods', 'Approach', 'Timeline', 'Budget', 'References', 'Team'],
 };
 
-export const FRAMEWORKS: Framework[] = [NIH_2025, NIH_LEGACY, NSF, CIHR, ERC, GENERIC];
+/* ---------- Horizon Europe ---------- */
+
+const HE_SCALE: ScaleDef = {
+  kind: 'numeric',
+  min: 0,
+  max: 5,
+  step: 0.5,
+  bestIsLow: false,
+  labels: { 0: 'Fails to address the criterion', 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very good', 5: 'Excellent' },
+  hint: '5 is best. Threshold 3 per criterion; 10 overall. Half points allowed.',
+};
+
+const HORIZON: Framework = {
+  id: 'horizon-europe',
+  name: 'Horizon Europe (RIA / IA)',
+  agency: 'EU',
+  blurb: 'Excellence, Impact, and Quality and efficiency of the implementation, each scored 0 to 5 with a threshold of 3; overall threshold 10 of 15.',
+  criterionScale: HE_SCALE,
+  criteria: [
+    {
+      id: 'excellence', name: 'Excellence', short: 'Excellence', group: 'core', bulleted: true,
+      keywords: ['objectives', 'ambition', 'methodology', 'state of the art', 'concept', 'interdisciplinary', 'gender dimension', 'open science'],
+      description: 'Clarity and pertinence of the objectives, soundness of the methodology, and the ambition beyond the state of the art.',
+      prompts: [
+        'Are the objectives clear, pertinent, and measurable?',
+        'Is the proposed work ambitious and beyond the state of the art?',
+        'Is the methodology sound, including interdisciplinary approaches, the gender dimension, and open science practices where relevant?',
+        'Are the scientific and technological risks and their mitigation credible?',
+      ],
+    },
+    {
+      id: 'impact', name: 'Impact', short: 'Impact', group: 'core', bulleted: true,
+      keywords: ['impact', 'outcomes', 'dissemination', 'exploitation', 'communication', 'pathway'],
+      description: 'Credibility of the pathways to the expected outcomes and impacts, and the measures to maximise them.',
+      prompts: [
+        'Is the pathway to the expected outcomes and impacts of the call credible?',
+        'Are dissemination, exploitation, and communication measures suitable and proportionate?',
+        'Is the scale and significance of the contribution to the expected impacts convincing?',
+      ],
+    },
+    {
+      id: 'implementation', name: 'Quality and efficiency of the implementation', short: 'Implementation', group: 'core', bulleted: true,
+      keywords: ['work plan', 'work package', 'consortium', 'management', 'resources', 'risk', 'gantt', 'deliverables', 'milestones'],
+      description: 'Quality of the work plan, appropriateness of resources, and the capacity and role of each participant.',
+      prompts: [
+        'Are the work plan, work packages, milestones, and deliverables coherent and effective?',
+        'Are the allocated resources appropriate and justified?',
+        'Does the consortium have the necessary capacity and complementary expertise?',
+        'Is the risk management plan adequate?',
+      ],
+    },
+  ],
+  overall: {
+    label: 'Total score',
+    description: 'Sum of the three criterion scores (0 to 15). Proposals must reach 3 on each criterion and 10 overall.',
+    scale: { kind: 'numeric', min: 0, max: 15, step: 0.5, bestIsLow: false, labels: { 13: 'Very strong', 10: 'Above threshold', 0: 'Below threshold' }, hint: '15 is best.' },
+  },
+  checklist: [
+    ...CORE_CHECKS,
+    { id: 'evaluation', label: 'Measurable objectives and success indicators', category: 'rigor', patterns: RX.evaluation },
+    { id: 'kt', label: 'Dissemination, exploitation, and communication plan', category: 'science', patterns: RX.kt },
+    { id: 'edi', label: 'Gender dimension and inclusiveness considered', category: 'compliance', patterns: [/gender (dimension|equality|balance)/i, ...RX.edi] },
+    { id: 'dataSharing', label: 'Open science and data management practices', category: 'compliance', patterns: RX.dataSharing },
+    ...REVIEWER_CHECKS,
+  ],
+  guidance: [
+    'Score each criterion independently against the call text; thresholds apply per criterion and to the total.',
+    'Comments should justify the score and be usable in the Evaluation Summary Report.',
+    'Do not reward proposals for content outside the scope of the topic.',
+  ],
+  expectedSections: ['Excellence', 'Impact', 'Implementation', 'Objectives', 'Methodology', 'Work plan', 'Work packages', 'Consortium', 'Resources', 'Risk'],
+};
+
+/* ---------- NSERC Discovery ---------- */
+
+const NSERC_SCALE: ScaleDef = {
+  kind: 'categorical',
+  options: [
+    { value: 'exceptional', label: 'Exceptional' },
+    { value: 'outstanding', label: 'Outstanding' },
+    { value: 'very-strong', label: 'Very Strong' },
+    { value: 'strong', label: 'Strong' },
+    { value: 'moderate', label: 'Moderate' },
+    { value: 'insufficient', label: 'Insufficient' },
+  ],
+};
+
+const NSERC: Framework = {
+  id: 'nserc-discovery',
+  name: 'NSERC Discovery Grant',
+  agency: 'NSERC',
+  blurb: 'Three equally weighted criteria: excellence of the researcher, merit of the proposal, and contribution to the training of highly qualified personnel (HQP).',
+  criterionScale: NSERC_SCALE,
+  criteria: [
+    {
+      id: 'researcher', name: 'Excellence of the Researcher', short: 'Researcher', group: 'core', bulleted: true,
+      keywords: ['contributions', 'publications', 'track record', 'CV', 'applicant'],
+      description: 'Knowledge, expertise, and experience; quality of contributions to research and their impact.',
+      prompts: ['How significant are the applicant\'s contributions over the past six years?', 'Is there evidence of impact and leadership in the field?', 'Are contributions assessed in context, including career interruptions?'],
+    },
+    {
+      id: 'merit', name: 'Merit of the Proposal', short: 'Proposal', group: 'core', bulleted: true,
+      keywords: ['objectives', 'methodology', 'originality', 'feasibility', 'budget', 'long-term'],
+      description: 'Originality and innovation, clarity of objectives, feasibility, and the relationship between the program and the budget.',
+      prompts: ['Are the long-term vision and short-term objectives clear and coherent?', 'Is the methodology appropriate and feasible?', 'Is the program original and innovative?', 'Is the budget justified in relation to the program?'],
+    },
+    {
+      id: 'hqp', name: 'Contribution to the Training of HQP', short: 'HQP Training', group: 'core', bulleted: true,
+      keywords: ['training', 'HQP', 'students', 'trainees', 'mentor', 'EDI'],
+      description: 'Quality of past and proposed training, including the training environment and equity, diversity, and inclusion practices.',
+      prompts: ['What is the quality and impact of past HQP training?', 'Is the proposed training plan appropriate for the program?', 'Are EDI considerations integrated into recruitment and training?'],
+    },
+  ],
+  overall: {
+    label: 'Overall assessment',
+    description: 'The combination of the three criterion ratings that determines the funding bin.',
+    scale: NSERC_SCALE,
+  },
+  checklist: [
+    ...CORE_CHECKS,
+    { id: 'training', label: 'HQP training plan is specific and appropriate', category: 'feasibility', patterns: RX.training },
+    { id: 'edi', label: 'EDI considerations in training and team', category: 'compliance', patterns: RX.edi },
+    ...REVIEWER_CHECKS,
+  ],
+  guidance: [
+    'Rate each criterion independently; NSERC combines them into a funding bin.',
+    'Assess the program of research, not a single project; Discovery Grants support long-term programs.',
+    'Consider contributions in context, including career stage and interruptions.',
+  ],
+  expectedSections: ['Summary', 'Proposal', 'Objectives', 'Methodology', 'Budget', 'Training', 'HQP', 'Contributions', 'Most Significant Contributions'],
+};
+
+/* ---------- NHMRC Ideas Grant ---------- */
+
+const NHMRC_SCALE: ScaleDef = {
+  kind: 'numeric',
+  min: 1,
+  max: 7,
+  bestIsLow: false,
+  labels: { 7: 'Exceptional', 6: 'Outstanding', 5: 'Excellent', 4: 'Very good', 3: 'Good', 2: 'Satisfactory', 1: 'Unsatisfactory' },
+  hint: '7 is best.',
+};
+
+const NHMRC: Framework = {
+  id: 'nhmrc-ideas',
+  name: 'NHMRC Ideas Grant',
+  agency: 'NHMRC',
+  blurb: 'Research Quality (50%), Innovation and Creativity (25%), and Significance (25%), each scored 1 to 7.',
+  criterionScale: NHMRC_SCALE,
+  criteria: [
+    {
+      id: 'quality', name: 'Research Quality (50%)', short: 'Quality', group: 'core', bulleted: true,
+      keywords: ['design', 'methods', 'feasibility', 'approach', 'analysis', 'team'],
+      description: 'Scientific quality of the design and methods, feasibility, and the team\'s capacity to deliver.',
+      prompts: ['Is the design appropriate and rigorous?', 'Is the project feasible within the timeframe and budget?', 'Does the team have the capability to deliver?'],
+    },
+    {
+      id: 'innovation', name: 'Innovation and Creativity (25%)', short: 'Innovation', group: 'core', bulleted: true,
+      keywords: ['innovative', 'novel', 'creative', 'original'],
+      description: 'Novelty of the idea, approach, or technology.',
+      prompts: ['Is the idea, approach, or technology genuinely novel?', 'Does it challenge existing paradigms?'],
+    },
+    {
+      id: 'significance', name: 'Significance (25%)', short: 'Significance', group: 'core', bulleted: true,
+      keywords: ['significance', 'impact', 'health', 'burden'],
+      description: 'Potential to improve health and to advance knowledge.',
+      prompts: ['What is the potential contribution to health outcomes?', 'How significant is the advance in knowledge?'],
+    },
+  ],
+  overall: {
+    label: 'Overall score',
+    description: 'Weighted overall assessment on the 1 to 7 scale.',
+    scale: NHMRC_SCALE,
+  },
+  checklist: [...CORE_CHECKS, { id: 'sex', label: 'Sex and gender considered', category: 'rigor', patterns: RX.sex }, ...REVIEWER_CHECKS],
+  guidance: ['Apply the weightings: Research Quality carries half the score.', 'Scores of 5 or above indicate a fundable proposal; justify scores at either extreme.'],
+  expectedSections: ['Synopsis', 'Research Proposal', 'Background', 'Aims', 'Research Plan', 'Methods', 'Timeline', 'Budget', 'Team', 'Significance'],
+};
+
+/* ---------- Wellcome ---------- */
+
+const WELLCOME_SCALE: ScaleDef = {
+  kind: 'categorical',
+  options: [
+    { value: 'exceptional', label: 'Exceptional' },
+    { value: 'excellent', label: 'Excellent' },
+    { value: 'very-good', label: 'Very good' },
+    { value: 'good', label: 'Good' },
+    { value: 'weak', label: 'Weak' },
+  ],
+};
+
+const WELLCOME: Framework = {
+  id: 'wellcome',
+  name: 'Wellcome Discovery Award',
+  agency: 'Wellcome',
+  blurb: 'Research question and proposal, the applicant and team, and the research environment. Confirm the descriptors against the scheme guidance for your call.',
+  criterionScale: WELLCOME_SCALE,
+  criteria: [
+    {
+      id: 'question', name: 'Research question and proposal', short: 'Proposal', group: 'core', bulleted: true,
+      keywords: ['question', 'vision', 'approach', 'methods', 'significance', 'bold'],
+      description: 'Importance and boldness of the research question and the quality and feasibility of the proposed approach.',
+      prompts: ['Is the question important and does it have the potential to transform understanding?', 'Is the approach well designed, feasible, and appropriately ambitious?', 'Are potential risks recognised with credible mitigation?'],
+    },
+    {
+      id: 'team', name: 'Applicant and team', short: 'Team', group: 'core', bulleted: true,
+      keywords: ['applicant', 'team', 'track record', 'leadership', 'expertise'],
+      description: 'Suitability of the applicant and team to deliver the proposal, including research culture and leadership.',
+      prompts: ['Does the team have the expertise and experience to deliver?', 'Is there evidence of a positive research culture and of developing others?'],
+    },
+    {
+      id: 'environment', name: 'Research environment', short: 'Environment', group: 'core', bulleted: true,
+      keywords: ['environment', 'institution', 'facilities', 'support', 'resources'],
+      description: 'Adequacy of the host environment, facilities, and institutional support.',
+      prompts: ['Are the facilities and institutional support adequate?', 'Are collaborations and access to resources secured?'],
+    },
+    {
+      id: 'budget', name: 'Resources requested', short: 'Budget', group: 'additional',
+      keywords: ['budget', 'costs'],
+      scale: { kind: 'categorical', options: [{ value: 'appropriate', label: 'Appropriate' }, { value: 'reduce', label: 'Reduction advised' }, { value: 'unjustified', label: 'Insufficiently justified' }] },
+      description: 'Are the requested resources appropriate and justified?',
+      prompts: ['Are costs proportionate to the work?'],
+    },
+  ],
+  overall: { label: 'Overall assessment', description: 'Your overall recommendation for the proposal.', scale: WELLCOME_SCALE },
+  checklist: [...CORE_CHECKS, { id: 'training', label: 'Research culture and development of team members', category: 'feasibility', patterns: RX.training }, { id: 'dataSharing', label: 'Open research and data sharing plan', category: 'compliance', patterns: RX.dataSharing }, ...REVIEWER_CHECKS],
+  guidance: ['Focus on the potential of the idea and the people; Wellcome asks reviewers to value boldness.', 'Comment on research culture and the applicant\'s contribution to it.'],
+  expectedSections: ['Research question', 'Proposal', 'Approach', 'Vision', 'Team', 'Environment', 'Costs', 'Budget'],
+};
+
+/* ---------- UKRI (MRC style) ---------- */
+
+const UKRI_SCALE: ScaleDef = {
+  kind: 'numeric',
+  min: 1,
+  max: 6,
+  bestIsLow: false,
+  labels: { 6: 'Exceptional', 5: 'Excellent', 4: 'Very good', 3: 'Good', 2: 'Fair', 1: 'Poor' },
+  hint: '6 is best. Confirm the scale in your council\'s reviewer guidance.',
+};
+
+const UKRI: Framework = {
+  id: 'ukri',
+  name: 'UKRI research grant (MRC style)',
+  agency: 'UKRI',
+  blurb: 'Importance, scientific potential, resources and management, and value for money. Adapt the scale to your council\'s reviewer guidance.',
+  criterionScale: UKRI_SCALE,
+  criteria: [
+    {
+      id: 'importance', name: 'Importance', short: 'Importance', group: 'core', bulleted: true,
+      keywords: ['importance', 'significance', 'need', 'impact', 'background'],
+      description: 'How important are the questions, and how will the work advance the field or health?',
+      prompts: ['How significant are the questions addressed?', 'What is the likely contribution to knowledge, health, or society?'],
+    },
+    {
+      id: 'potential', name: 'Scientific potential', short: 'Potential', group: 'core', bulleted: true,
+      keywords: ['design', 'methods', 'approach', 'feasibility', 'preliminary', 'analysis'],
+      description: 'Quality of the design and methods, feasibility, and the applicants\' ability to deliver.',
+      prompts: ['Are the design and methods appropriate and rigorous?', 'Are sample sizes and analyses justified?', 'Do the applicants have the track record to deliver?'],
+    },
+    {
+      id: 'resources', name: 'Resources and management', short: 'Resources', group: 'core', bulleted: true,
+      keywords: ['budget', 'resources', 'management', 'timeline', 'environment', 'staff'],
+      description: 'Appropriateness of resources, staffing, environment, and project management.',
+      prompts: ['Are the requested resources appropriate and justified?', 'Is the project management and timeline realistic?'],
+    },
+    {
+      id: 'value', name: 'Value for money', short: 'Value', group: 'additional',
+      keywords: ['value', 'cost'],
+      scale: { kind: 'categorical', options: [{ value: 'good', label: 'Good value' }, { value: 'acceptable', label: 'Acceptable' }, { value: 'poor', label: 'Poor value' }] },
+      description: 'Does the likely benefit justify the cost?',
+      prompts: ['Could the same outcomes be achieved at lower cost?'],
+    },
+  ],
+  overall: { label: 'Overall score', description: 'Your overall score for the proposal.', scale: UKRI_SCALE },
+  checklist: [...CORE_CHECKS, { id: 'dataSharing', label: 'Data management and sharing plan', category: 'compliance', patterns: RX.dataSharing }, { id: 'kt', label: 'Pathways to impact or dissemination', category: 'science', patterns: RX.kt }, ...REVIEWER_CHECKS],
+  guidance: ['Comment on each criterion separately; panels read the criterion comments alongside the score.', 'Value for money is judged against the likely outcomes, not the absolute cost.'],
+  expectedSections: ['Case for Support', 'Importance', 'Background', 'Aims', 'Objectives', 'Methods', 'Experimental design', 'Justification of resources', 'Data management plan', 'Pathways to impact'],
+};
+
+/* ---------- DFG ---------- */
+
+const DFG_SCALE: ScaleDef = {
+  kind: 'categorical',
+  options: [
+    { value: 'excellent', label: 'Excellent' },
+    { value: 'very-good', label: 'Very good' },
+    { value: 'good', label: 'Good' },
+    { value: 'satisfactory', label: 'Satisfactory' },
+    { value: 'not-fundable', label: 'Not fundable' },
+  ],
+};
+
+const DFG: Framework = {
+  id: 'dfg',
+  name: 'DFG Research Grant (Sachbeihilfe)',
+  agency: 'DFG',
+  blurb: 'Quality and originality of the project, qualifications of the applicant, and the work programme and feasibility, leading to a funding recommendation.',
+  criterionScale: DFG_SCALE,
+  criteria: [
+    {
+      id: 'project', name: 'Quality of the project', short: 'Project', group: 'core', bulleted: true,
+      keywords: ['objectives', 'state of the art', 'originality', 'significance', 'hypothesis'],
+      description: 'Scientific quality, originality, and significance of the objectives in relation to the state of the art.',
+      prompts: ['Are the objectives original and scientifically significant?', 'Is the project well grounded in the state of the art?'],
+    },
+    {
+      id: 'applicant', name: 'Qualifications of the applicant', short: 'Applicant', group: 'core', bulleted: true,
+      keywords: ['applicant', 'publications', 'preliminary', 'track record'],
+      description: 'Expertise and preliminary work that qualify the applicant to carry out the project.',
+      prompts: ['Do the applicant\'s prior work and preliminary results support the project?'],
+    },
+    {
+      id: 'programme', name: 'Work programme and feasibility', short: 'Work programme', group: 'core', bulleted: true,
+      keywords: ['work programme', 'methods', 'timeline', 'feasibility', 'resources', 'budget'],
+      description: 'Appropriateness and feasibility of the work programme, methods, timeline, and requested funds.',
+      prompts: ['Are the methods and timeline realistic?', 'Are the requested funds necessary and justified?'],
+    },
+  ],
+  overall: { label: 'Funding recommendation', description: 'Your recommendation to the DFG.', scale: DFG_SCALE },
+  checklist: [...CORE_CHECKS, { id: 'dataSharing', label: 'Handling of research data described', category: 'compliance', patterns: RX.dataSharing }, ...REVIEWER_CHECKS],
+  guidance: ['Give a clear funding recommendation and the reasons for it.', 'Comment on the requested funds; the DFG asks whether they are appropriate.'],
+  expectedSections: ['State of the art', 'Preliminary work', 'Objectives', 'Work programme', 'Methods', 'Handling of research data', 'Requested modules', 'Funding'],
+};
+
+/* ---------- registry ---------- */
+
+/** Checklist attached to reviewer-defined frameworks. */
+export const DEFAULT_CHECKLIST: ChecklistItemDef[] = [...CORE_CHECKS, { id: 'kt', label: 'Dissemination plan is described', category: 'science', patterns: RX.kt }, ...REVIEWER_CHECKS];
+
+/** Serialisable definition of a reviewer-defined framework (no RegExp). */
+export interface CustomFrameworkDef {
+  id: string;
+  name: string;
+  agency: string;
+  blurb: string;
+  criteria: {
+    id: string;
+    name: string;
+    short: string;
+    description: string;
+    prompts: string[];
+    group: CriterionGroup;
+    scale?: ScaleDef;
+  }[];
+  criterionScale: ScaleDef;
+  overall: { label: string; description: string; scale: ScaleDef };
+  recommendations?: string[];
+  guidance?: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+const STOP_KEYWORDS = new Set(['and', 'of', 'the', 'for', 'to', 'in', 'a', 'an', 'or', 'with', 'on']);
+
+/** Build a runtime Framework from a stored definition. */
+export function customToFramework(def: CustomFrameworkDef): Framework {
+  return {
+    id: def.id,
+    name: def.name,
+    agency: def.agency || 'Custom',
+    blurb: def.blurb || 'Reviewer-defined framework.',
+    criterionScale: def.criterionScale,
+    criteria: def.criteria.map((c) => ({
+      ...c,
+      bulleted: true,
+      keywords: c.name
+        .toLowerCase()
+        .split(/[^a-z]+/)
+        .filter((w) => w.length > 3 && !STOP_KEYWORDS.has(w)),
+    })),
+    overall: def.overall,
+    recommendations: def.recommendations?.length ? def.recommendations : undefined,
+    checklist: DEFAULT_CHECKLIST,
+    guidance: def.guidance ?? [],
+    expectedSections: [],
+    custom: true,
+  };
+}
+
+/** Turn any framework into an editable definition (used to duplicate built-ins). */
+export function frameworkToCustomDef(fw: Framework, id: string, name?: string): CustomFrameworkDef {
+  const now = Date.now();
+  return {
+    id,
+    name: name ?? `${fw.name} (copy)`,
+    agency: fw.agency,
+    blurb: fw.blurb,
+    criteria: fw.criteria.map((c) => ({ id: c.id, name: c.name, short: c.short, description: c.description, prompts: [...c.prompts], group: c.group, scale: c.scale })),
+    criterionScale: fw.criterionScale,
+    overall: { ...fw.overall },
+    recommendations: fw.recommendations ? [...fw.recommendations] : undefined,
+    guidance: [...fw.guidance],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+let customFrameworks: Framework[] = [];
+
+/** Replace the set of reviewer-defined frameworks available to getFramework(). */
+export function setCustomFrameworks(defs: CustomFrameworkDef[]): void {
+  customFrameworks = defs.map(customToFramework);
+}
+
+export function allFrameworks(): Framework[] {
+  return [...FRAMEWORKS, ...customFrameworks];
+}
+
+export const FRAMEWORKS: Framework[] = [NIH_2025, NIH_LEGACY, NSF, CIHR, ERC, HORIZON, NSERC, NHMRC, WELLCOME, UKRI, DFG, GENERIC];
 
 export function getFramework(id: string): Framework {
-  return FRAMEWORKS.find((f) => f.id === id) ?? GENERIC;
+  return FRAMEWORKS.find((f) => f.id === id) ?? customFrameworks.find((f) => f.id === id) ?? GENERIC;
 }
 
 export function criterionScale(fw: Framework, c: Criterion): ScaleDef {
@@ -698,5 +1110,11 @@ export function detectFramework(text: string): string | undefined {
   if (/Canadian Institutes of Health Research|\bCIHR\b|Foundation Grant|Nominated Principal Applicant/i.test(t)) return 'cihr-project';
   if (/European Research Council|\bERC\b|Starting Grant|Consolidator Grant|Synergy Grant/i.test(t)) return 'erc';
   if (/National Science Foundation|\bNSF\b|Intellectual Merit|Broader Impacts/i.test(t)) return 'nsf';
+  if (/Horizon Europe|\bHORIZON-[A-Z]+/i.test(t)) return 'horizon-europe';
+  if (/\bNSERC\b|Natural Sciences and Engineering Research Council|Discovery Grant/i.test(t)) return 'nserc-discovery';
+  if (/\bNHMRC\b|National Health and Medical Research Council|Ideas Grant/i.test(t)) return 'nhmrc-ideas';
+  if (/\bWellcome\b/i.test(t)) return 'wellcome';
+  if (/\bUKRI\b|Medical Research Council|\bMRC\b|\bBBSRC\b|\bEPSRC\b|Case for Support/i.test(t)) return 'ukri';
+  if (/Deutsche Forschungsgemeinschaft|\bDFG\b|Sachbeihilfe/i.test(t)) return 'dfg';
   return undefined;
 }

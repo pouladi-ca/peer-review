@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useFramework } from '../../hooks/useFramework';
 import { Copy, Download, FileText, Printer, Archive, Wand2, Eye, EyeOff } from 'lucide-react';
 import { useStore } from '../../lib/store';
-import { getFramework } from '../../lib/frameworks';
 import { autoSummary, composeDraft, draftToMarkdown, draftToPlainText, type DraftBullet } from '../../lib/draft';
 import { copyText, downloadBlob, downloadText, safeFilename } from '../../lib/export/download';
 import { draftToDocx } from '../../lib/export/docx';
@@ -13,7 +13,7 @@ export function DraftPanel() {
   const review = useStore((s) => s.review)!;
   const update = useStore((s) => s.update);
   const notify = useStore((s) => s.notify);
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   const [includeConfidential, setIncludeConfidential] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const draft = useMemo(() => composeDraft(review, fw), [review, fw]);
@@ -177,7 +177,7 @@ function Bullets({ title, list }: { title: string; list: DraftBullet[] }) {
 
 export function DraftPreview({ includeConfidential }: { includeConfidential: boolean }) {
   const review = useStore((s) => s.review)!;
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   const d = useMemo(() => composeDraft(review, fw), [review, fw]);
   return (
     <article className="preview" id="print-root">

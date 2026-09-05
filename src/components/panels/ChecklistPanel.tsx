@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
+import { useFramework } from '../../hooks/useFramework';
 import { Check, X, Minus, SearchX, MapPin } from 'lucide-react';
 import { useStore } from '../../lib/store';
-import { getFramework, type ChecklistCategory, type ChecklistItemDef } from '../../lib/frameworks';
+import { type ChecklistCategory, type ChecklistItemDef } from '../../lib/frameworks';
 import { findEvidence } from '../../lib/analyze/checklist';
 import type { CheckState, EvidenceHit } from '../../lib/types';
 
@@ -17,7 +18,7 @@ const ORDER: ChecklistCategory[] = ['science', 'rigor', 'feasibility', 'complian
 export function ChecklistPanel() {
   const review = useStore((s) => s.review)!;
   const docs = useStore((s) => s.docs);
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
 
   const evidence = useMemo(() => {
     const out: Record<string, (EvidenceHit & { docId: string })[]> = {};

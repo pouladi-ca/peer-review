@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useFramework } from '../../hooks/useFramework';
 import { ChevronDown, Compass, Gauge, Sparkles, Target } from 'lucide-react';
 import { useStore, selectActiveDoc } from '../../lib/store';
-import { getFramework } from '../../lib/frameworks';
 import { computeProgress } from '../../lib/progress';
 import { plural } from '../../lib/format';
 import type { QuickFacts } from '../../lib/types';
@@ -21,7 +21,7 @@ export function BriefPanel() {
   const review = useStore((s) => s.review)!;
   const doc = useStore(selectActiveDoc);
   const update = useStore((s) => s.update);
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   const progress = useMemo(() => computeProgress(review, fw), [review, fw]);
   const [guideOpen, setGuideOpen] = useState(false);
   const facts = review.facts;

@@ -22,6 +22,7 @@ export function useGlobalShortcuts() {
       if (e.key === 'Escape') {
         if (s.paletteOpen) s.setPalette(false);
         else if (s.helpOpen) s.setHelp(false);
+        else if (s.frameworkEditor.open) s.closeFrameworkEditor();
         else if (s.editingNoteId) s.editNote(null);
         else if (s.focusMode) s.toggleFocus();
         return;

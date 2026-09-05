@@ -211,6 +211,45 @@ gap(6)
 p("Personnel costs reflect institutional salary scales and effort. Animal costs follow per-diem rates. "
   "Sequencing costs are based on core facility quotes. The budget is justified by the scope of the aims.")
 
+# ---------- landscape budget detail (mixed page sizes exercise the viewer) ----------
+from reportlab.platypus import NextPageTemplate, PageTemplate, Frame
+from reportlab.lib.pagesizes import landscape
+story.append(NextPageTemplate("landscape"))
+story.append(PageBreak())
+p("Detailed Budget by Year", H1)
+years = ["Category", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Total"]
+rows = [years,
+        ["Personnel", "$248,000", "$255,440", "$263,103", "$270,996", "$279,126", "$1,316,665"],
+        ["Animals", "$34,000", "$35,020", "$36,071", "$37,153", "$38,267", "$180,511"],
+        ["Reagents and sequencing", "$52,000", "$53,560", "$55,167", "$56,822", "$58,526", "$276,075"],
+        ["Imaging core", "$28,000", "$28,840", "$29,705", "$30,596", "$31,514", "$148,655"],
+        ["Travel and publication", "$8,000", "$8,000", "$8,000", "$8,000", "$8,000", "$40,000"],
+        ["Total direct costs", "$370,000", "$380,860", "$392,046", "$403,567", "$415,433", "$1,961,906"]]
+t2 = Table(rows, colWidths=[2.4 * inch] + [1.05 * inch] * 6)
+t2.setStyle(TableStyle([
+    ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 9.5),
+    ("FONT", (0, 1), (-1, -1), "Times-Roman", 9.5),
+    ("BACKGROUND", (0, 0), (-1, 0), HexColor("#e6ecf2")),
+    ("GRID", (0, 0), (-1, -1), 0.4, HexColor("#b8c2ce")),
+    ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+    ("FONT", (0, -1), (-1, -1), "Helvetica-Bold", 9.5),
+]))
+story.append(t2)
+gap(8)
+p("Timeline (Gantt)", H2)
+gantt = [["Activity", "Y1", "Y2", "Y3", "Y4", "Y5"],
+         ["Aim 1: mechanism", "■■■■", "■■■■", "", "", ""],
+         ["Aim 2: in vivo necessity and sufficiency", "", "■■", "■■■■", "■■■■", ""],
+         ["Aim 3: engineered exosome therapeutic", "", "", "", "■■■■", "■■■■"],
+         ["Data sharing and dissemination", "■", "■", "■", "■", "■■■"]]
+t3 = Table(gantt, colWidths=[3.4 * inch] + [1.0 * inch] * 5)
+t3.setStyle(TableStyle([("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 9.5), ("FONT", (0, 1), (-1, -1), "Times-Roman", 9.5),
+                        ("GRID", (0, 0), (-1, -1), 0.4, HexColor("#b8c2ce")), ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+                        ("TEXTCOLOR", (1, 1), (-1, -1), HexColor("#2c6b70"))]))
+story.append(t3)
+story.append(NextPageTemplate("portrait"))
+story.append(PageBreak())
+
 # ---------- references ----------
 p("References Cited", H1)
 refs = [
@@ -229,10 +268,17 @@ refs = [
 for i, r in enumerate(refs, 1):
     p(f"{i}. {r}", REF)
 
-doc = SimpleDocTemplate(os.path.abspath(OUT), pagesize=letter,
-                        topMargin=0.9 * inch, bottomMargin=0.9 * inch,
-                        leftMargin=1.0 * inch, rightMargin=1.0 * inch,
-                        title="Sample R01 Application (fictional)",
-                        author="Panelist demo")
+from reportlab.platypus import BaseDocTemplate
+doc = BaseDocTemplate(os.path.abspath(OUT), pagesize=letter,
+                      topMargin=0.9 * inch, bottomMargin=0.9 * inch,
+                      leftMargin=1.0 * inch, rightMargin=1.0 * inch,
+                      title="Sample R01 Application (fictional)",
+                      author="Panelist demo")
+W, H = letter
+LW, LH = landscape(letter)
+doc.addPageTemplates([
+    PageTemplate(id="portrait", frames=[Frame(1.0 * inch, 0.9 * inch, W - 2.0 * inch, H - 1.8 * inch, id="pf")], pagesize=letter),
+    PageTemplate(id="landscape", frames=[Frame(0.8 * inch, 0.8 * inch, LW - 1.6 * inch, LH - 1.6 * inch, id="lf")], pagesize=landscape(letter)),
+])
 doc.build(story)
 print("wrote", os.path.abspath(OUT))

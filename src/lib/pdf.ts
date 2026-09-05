@@ -8,9 +8,17 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 export type { PDFDocumentProxy, PDFPageProxy };
 
+const ASSET_BASE = `${import.meta.env.BASE_URL}pdfjs/`;
+
 export async function loadPdf(data: ArrayBuffer | Uint8Array): Promise<PDFDocumentProxy> {
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-  return pdfjs.getDocument({ data: bytes }).promise;
+  return pdfjs.getDocument({
+    data: bytes,
+    // Non-embedded base-14 fonts and CJK encodings need these bundled assets.
+    standardFontDataUrl: `${ASSET_BASE}standard_fonts/`,
+    cMapUrl: `${ASSET_BASE}cmaps/`,
+    cMapPacked: true,
+  }).promise;
 }
 
 interface RawItem {

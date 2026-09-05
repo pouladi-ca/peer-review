@@ -1,6 +1,7 @@
 import { AlertCircle, ArrowRight, CheckCircle2, Circle, Lightbulb } from 'lucide-react';
+import { useFramework } from '../hooks/useFramework';
 import { useStore } from '../lib/store';
-import { criterionScale, getFramework } from '../lib/frameworks';
+import { criterionScale } from '../lib/frameworks';
 import { computeReadiness, type ScorecardRow } from '../lib/readiness';
 import { useMemo } from 'react';
 
@@ -13,7 +14,7 @@ function swatch(goodness?: number): string {
 /** A compact board: every core criterion with its score and evidence counts. */
 export function Scorecard() {
   const review = useStore((s) => s.review)!;
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   const readiness = useMemo(() => computeReadiness(review, fw), [review, fw]);
 
   const go = (id: string) => {
@@ -65,7 +66,7 @@ function Dots({ row }: { row: ScorecardRow }) {
 /** A "before you submit" panel: blockers that must be resolved and thoroughness nudges. */
 export function SubmitCheck() {
   const review = useStore((s) => s.review)!;
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   const { blockers, suggestions, ready } = useMemo(() => computeReadiness(review, fw), [review, fw]);
 
   const jump = (tab: 'brief' | 'notes' | 'score' | 'checklist' | 'draft') => useStore.getState().setTab(tab);

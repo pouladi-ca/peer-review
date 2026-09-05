@@ -9,6 +9,7 @@
 import { chromium } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
+const LINUX_CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 import { fileURLToPath } from 'node:url';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
@@ -61,7 +62,7 @@ async function jumpTo(page, section) {
 }
 
 const run = async () => {
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+  const browser = await chromium.launch(fs.existsSync(LINUX_CHROME) ? { executablePath: LINUX_CHROME } : {});
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
   page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
 

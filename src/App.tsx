@@ -7,6 +7,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { Toast, BusyOverlay } from './components/Overlays';
 import { Celebrate } from './components/Celebrate';
+import { FrameworkEditor } from './components/FrameworkEditor';
 
 export default function App() {
   const booted = useStore((s) => s.booted);
@@ -24,6 +25,7 @@ export default function App() {
       {hasReview ? <Workspace /> : <Library />}
       <CommandPalette />
       <ShortcutsHelp />
+      <FrameworkEditor />
       <BusyOverlay />
       <Celebrate />
       <Toast />

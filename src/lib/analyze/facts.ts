@@ -4,48 +4,126 @@ const STOP = new Set(
   'the and for that with this from which will have been were are was our their these those into than then also such more most other some each between within about using used use based both may can could would should than data study studies research proposed propose project aims aim specific significance approach however therefore while where when whether through during after before under over across per among via well however including include includes included provide provides provided determine determined identify identified evaluate evaluated develop developed established establish results result method methods analysis analyses figure table page year years months first second third new high low large small number total further work group groups model models system systems level levels time effect effects role potential important novel application applicant university hospital institute department'.split(/\s+/),
 );
 
+const TITLE_LABEL = /^(?:project |proposal |application |grant |research |study )?title(?: of (?:the )?(?:project|proposal|research|application|study))?\s*[:\-–]?\s*/i;
+
+function upperRatio(t: string): number {
+  const letters = t.replace(/[^A-Za-z]/g, '');
+  if (!letters) return 0;
+  return letters.replace(/[^A-Z]/g, '').length / letters.length;
+}
+
+/** Reject strings that are form furniture rather than a title. */
+function badTitle(t: string): boolean {
+  return (
+    t.length < 8 ||
+    /^[(\[]/.test(t) || // parenthetical instructions
+    /[:：]\s*$/.test(t) ||
+    /\b(if renewal|current grant|form|application (form|type)|page \d|instructions?|cover ?sheet|face ?page|table of contents|characters?|truncated|including spaces|punctuation|maximum|limit|enter|please)\b/i.test(t) ||
+    /[$€£]\s?\d/.test(t) ||
+    /\.(pdf|docx?)\b/i.test(t) ||
+    /_{3,}/.test(t) ||
+    (upperRatio(t) > 0.7 && t.length < 40)
+  );
+}
+
 function titleFromFirstPages(pages: PageText[]): string | undefined {
-  const first = pages.slice(0, 2);
+  const first = pages.slice(0, 4);
   const lines = first.flatMap((p) => p.lines);
   if (lines.length === 0) return undefined;
-  // Explicit label wins.
-  for (const l of lines) {
-    const m = l.text.match(/^(?:project |proposal |application )?title\s*[:\-–]\s*(.{8,200})$/i);
-    if (m) return m[1].trim();
-  }
-  for (let i = 0; i < lines.length - 1; i++) {
-    if (/^(?:project |proposal |application )?title\s*:?$/i.test(lines[i].text.trim())) {
-      const next = lines[i + 1].text.trim();
-      if (next.length > 8) return next;
+  // Explicit label wins, on the same line or the next.
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].text.trim();
+    if (!TITLE_LABEL.test(t)) continue;
+    const rest = t.replace(TITLE_LABEL, '').trim();
+    if (rest.length >= 8 && !badTitle(rest)) return rest.slice(0, 220);
+    // Portal forms often put instructions between the label and the value; look a few lines ahead.
+    for (let j = i + 1; j <= i + 4 && j < lines.length; j++) {
+      const next = lines[j].text.trim();
+      if (next.length < 8 || TITLE_LABEL.test(next)) continue;
+      if (badTitle(next)) continue;
+      if (/^[^:]{1,30}:\s*\S/.test(next)) break; // ran into the next field
+      return next.slice(0, 220);
     }
   }
   // Largest type on the first page, merging adjacent lines of the same size.
-  const p1 = first[0].lines.filter((l) => l.text.trim().length > 3 && !/^\d+$/.test(l.text));
+  const p1 = pages[0].lines.filter((l) => l.text.trim().length > 3 && !/^\d+$/.test(l.text));
   if (p1.length === 0) return undefined;
-  const maxSize = Math.max(...p1.map((l) => l.size));
-  const bodyish = p1.filter((l) => l.size >= maxSize - 0.5);
-  const startIdx = p1.indexOf(bodyish[0]);
-  const parts: string[] = [];
-  for (let i = startIdx; i < p1.length; i++) {
-    if (p1[i].size < maxSize - 0.5) break;
-    parts.push(p1[i].text.trim());
-    if (parts.join(' ').length > 220) break;
+  const sizes = [...new Set(p1.map((l) => Math.round(l.size * 2) / 2))].sort((a, b) => b - a);
+  for (const size of sizes.slice(0, 3)) {
+    const startIdx = p1.findIndex((l) => Math.abs(l.size - size) <= 0.5);
+    if (startIdx < 0) continue;
+    const parts: string[] = [];
+    for (let i = startIdx; i < p1.length; i++) {
+      if (Math.abs(p1[i].size - size) > 0.5) break;
+      parts.push(p1[i].text.trim());
+      if (parts.join(' ').length > 220) break;
+    }
+    const t = parts.join(' ').replace(/\s+/g, ' ').trim();
+    if (!badTitle(t)) return t;
   }
-  const t = parts.join(' ').replace(/\s+/g, ' ').trim();
-  if (t.length < 8) return undefined;
-  return t;
+  return undefined;
 }
 
-function labelled(lines: TextLine[], labels: RegExp): string | undefined {
+const NOT_A_NAME = /\b(name|degree|biosketch|title|role|position|applicant|investigator|director|application|contacts?|information|section|page|form|type|status|organi[sz]ation|institution|university|department|address|phone|e-?mail|prefix|suffix|first|last|middle)\b/i;
+
+/** Does a string look like a person's name rather than a heading or label? */
+function looksLikeName(v: string): boolean {
+  const t = v.replace(/\s*[-–]\s*\d{4,}.*$/, '').trim(); // strip "- 1530329" ids
+  if (t.length < 4 || t.length > 80) return false;
+  if (upperRatio(t) > 0.8) return false;
+  if (NOT_A_NAME.test(t)) return false;
+  if (/\.(pdf|docx?)\b/i.test(t)) return false;
+  return /^(?:Dr\.?\s+|Prof\.?\s+|Professor\s+)?[A-Z][\w'’.-]+(?:,\s*[A-Z][\w'’.-]+|\s+(?:[A-Z]\.?\s+)?[A-Z][\w'’.-]+)/.test(t);
+}
+
+const STRONG_PI_LABEL = /^(?:principal investigator|pd\/pi|pi name|proposal by|submitted by|applicant name|nominated principal applicant|principal applicant|project director|program director)/i;
+
+/** Pick the best applicant-name candidate across all labelled lines. */
+function bestName(lines: TextLine[], labels: RegExp): string | undefined {
+  let best: { v: string; score: number } | undefined;
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].text.trim();
     const m = t.match(labels);
     if (!m) continue;
     const rest = t.slice(m[0].length).replace(/^[\s:\-–]+/, '').trim();
-    if (rest.length > 2) return rest.slice(0, 120);
-    if (lines[i + 1] && lines[i + 1].text.trim().length > 2) return lines[i + 1].text.trim().slice(0, 120);
+    const next = lines[i + 1]?.text.trim() ?? '';
+    const candidates = rest.length > 2 ? [rest] : next && !labels.test(next) ? [next] : [];
+    for (const c of candidates) {
+      if (!looksLikeName(c)) continue;
+      let score = 1;
+      if (STRONG_PI_LABEL.test(t)) score += 3;
+      if (/^[A-Z][\w'’.-]+,\s*[A-Z]/.test(c)) score += 2; // "Last, First"
+      if (/^(Dr|Prof)/.test(c)) score += 1;
+      if (!best || score > best.score) best = { v: c, score };
+    }
+  }
+  return best?.v;
+}
+
+function cleanName(v: string): string {
+  return v.replace(/\s*[-–]\s*\d{4,}.*$/, '').replace(/\s+/g, ' ').trim().slice(0, 100);
+}
+
+function labelled(lines: TextLine[], labels: RegExp, accept: (v: string) => boolean = (v) => v.length > 2): string | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].text.trim();
+    const m = t.match(labels);
+    if (!m) continue;
+    const rest = t.slice(m[0].length).replace(/^[\s:\-–]+/, '').trim();
+    if (rest.length > 2 && accept(rest)) return rest.slice(0, 120);
+    const next = lines[i + 1]?.text.trim() ?? '';
+    if (rest.length <= 2 && next.length > 2 && accept(next) && !labels.test(next)) return next.slice(0, 120);
   }
   return undefined;
+}
+
+const INSTITUTION_WORDS = /\b(university|universit[aä]t|institute\b|institut\b|college|hospital|centre for|center for|school of|laboratory|foundation|academy|clinic|health system|medical cent|polytechnic)/i;
+
+function institutionLike(v: string): boolean {
+  if (v.length < 4 || v.length > 100) return false;
+  if (/^(institution|organi[sz]ation|affiliation|employer)(\s*(name|&\s*contacts|contacts))?\s*:?$/i.test(v)) return false; // the label itself
+  if (/^[^:]{1,30}:\s*$/.test(v)) return false; // "Something:" with no value
+  return INSTITUTION_WORDS.test(v) && !/\.(pdf|docx?)\b/i.test(v) && !/biosketch|curriculum|résumé|resume|_{3,}/i.test(v) && upperRatio(v) < 0.9;
 }
 
 function detectBudget(text: string): string | undefined {
@@ -147,14 +225,21 @@ function countReferences(pages: PageText[]): number {
 
 export function extractFacts(pages: PageText[]): QuickFacts {
   const text = pages.map((p) => p.text).join('\n');
-  const firstLines = pages.slice(0, 3).flatMap((p) => p.lines);
+  const firstLines = pages.slice(0, 4).flatMap((p) => p.lines);
   const words = (text.match(/\S+/g) ?? []).length;
+  const piRaw = bestName(
+    firstLines,
+    /^(?:principal investigator(?:\/program director)?|program director\/principal investigator|pd\/pi(?: name)?|pi name|nominated principal applicant|principal applicant|lead applicant|project lead|project director|proposal by|submitted by|applicant name|applicant)\b\s*(?:\(s\))?/i,
+  );
   return {
     title: titleFromFirstPages(pages),
-    pi: labelled(firstLines, /^(?:principal investigator|nominated principal applicant|principal applicant|pd\/pi|pi|applicant|lead applicant|project lead)\b\s*(?:\(s\))?/i),
+    pi: piRaw ? cleanName(piRaw) : undefined,
     institution:
-      labelled(firstLines, /^(?:institution|organization|organisation|applicant organization|host institution|affiliation)\b/i) ??
-      firstLines.map((l) => l.text.trim()).find((t) => /\b(university|institute|college|hospital|centre|center|school of)\b/i.test(t) && t.length < 100),
+      labelled(
+        firstLines,
+        /^(?:institution(?: name)?|organization(?: name)?|organisation(?: name)?|applicant organization|host institution|affiliation|employer|department\/institution)\b/i,
+        institutionLike,
+      ) ?? firstLines.map((l) => l.text.trim()).find((t) => institutionLike(t) && /^[A-Z]/.test(t)),
     mechanism: detectMechanism(text.slice(0, 30000)),
     budget: detectBudget(text),
     duration: detectDuration(text),

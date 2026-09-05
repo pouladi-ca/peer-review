@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { produce } from 'immer';
 import { nanoid } from 'nanoid';
 import { db } from './db';
-import { detectFramework, getFramework } from './frameworks';
+import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef } from './frameworks';
+import { getSetting, setSetting } from './db';
 import { extractAllPages, loadPdf, type PDFDocumentProxy } from './pdf';
 import { detectOutline } from './analyze/outline';
 import { extractFacts } from './analyze/facts';
@@ -66,6 +67,10 @@ interface State {
   filter: NoteFilter;
   saveState: 'idle' | 'saving' | 'saved';
   busy: string | null;
+  customFrameworks: CustomFrameworkDef[];
+  /** Bumped whenever the set of frameworks changes so views re-resolve them. */
+  frameworksVersion: number;
+  frameworkEditor: { open: boolean; id?: string };
 
   boot(): Promise<void>;
   createReview(files: File[], opts?: { frameworkId?: string }): Promise<string>;
@@ -97,6 +102,10 @@ interface State {
   setFramework(id: string): void;
   tickActive(ms: number): void;
   importReview(review: Review, files: { id: string; name: string; blob: Blob }[]): Promise<void>;
+  saveCustomFramework(def: CustomFrameworkDef): Promise<void>;
+  deleteCustomFramework(id: string): Promise<boolean>;
+  openFrameworkEditor(id?: string): void;
+  closeFrameworkEditor(): void;
 }
 
 function destroyPdf(pdf?: PDFDocumentProxy): void {
@@ -207,10 +216,16 @@ export const useStore = create<State>((set, get) => {
     filter: { kinds: ['strength', 'weakness', 'question', 'note'], query: '' },
     saveState: 'idle',
     busy: null,
+    customFrameworks: [],
+    frameworksVersion: 0,
+    frameworkEditor: { open: false },
 
     async boot() {
       applyTheme(get().theme);
       try {
+        const defs = await getSetting<CustomFrameworkDef[]>('customFrameworks', []);
+        setCustomFrameworks(defs);
+        set((s) => ({ customFrameworks: defs, frameworksVersion: s.frameworksVersion + 1 }));
         const reviews = await db.reviews.orderBy('updatedAt').reverse().toArray();
         set({ reviews, booted: true });
       } catch (e) {
@@ -444,6 +459,35 @@ export const useStore = create<State>((set, get) => {
       await db.reviews.put(review);
       set((s) => ({ reviews: [review, ...s.reviews.filter((r) => r.id !== review.id)] }));
     },
+
+    async saveCustomFramework(def) {
+      const next = [...get().customFrameworks.filter((d) => d.id !== def.id), { ...def, updatedAt: Date.now() }].sort((a, b) => a.name.localeCompare(b.name));
+      setCustomFrameworks(next);
+      set((s) => ({ customFrameworks: next, frameworksVersion: s.frameworksVersion + 1 }));
+      await setSetting('customFrameworks', next);
+      // Re-run outline detection if the open review uses this framework.
+      const r = get().review;
+      if (r && r.frameworkId === def.id) {
+        const fw = getFramework(def.id);
+        set((s) => ({ docs: Object.fromEntries(Object.entries(s.docs).map(([k, d]) => [k, d.status === 'ready' ? { ...d, outline: detectOutline(d.pages, fw) } : d])) }));
+      }
+    },
+
+    async deleteCustomFramework(id) {
+      const inUse = get().reviews.some((r) => r.frameworkId === id) || get().review?.frameworkId === id;
+      if (inUse) {
+        get().notify('That framework is used by a review. Switch the review to another framework first.', 'error');
+        return false;
+      }
+      const next = get().customFrameworks.filter((d) => d.id !== id);
+      setCustomFrameworks(next);
+      set((s) => ({ customFrameworks: next, frameworksVersion: s.frameworksVersion + 1 }));
+      await setSetting('customFrameworks', next);
+      return true;
+    },
+
+    openFrameworkEditor: (id) => set({ frameworkEditor: { open: true, id }, paletteOpen: false, helpOpen: false }),
+    closeFrameworkEditor: () => set({ frameworkEditor: { open: false } }),
   };
 });
 

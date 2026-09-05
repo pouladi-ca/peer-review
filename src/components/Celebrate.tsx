@@ -8,7 +8,8 @@ const COLORS = ['#2e7d4f', '#2c6b70', '#b26f14', '#4a6aa5', '#c2413f', '#7cc4c6'
 /** A brief, tasteful confetti burst the first time a review reaches 100%. */
 export function Celebrate() {
   const review = useStore((s) => s.review);
-  const percent = useMemo(() => (review ? computeProgress(review, getFramework(review.frameworkId)).percent : 0), [review]);
+  const fwVersion = useStore((s) => s.frameworksVersion);
+  const percent = useMemo(() => (review ? computeProgress(review, getFramework(review.frameworkId)).percent : 0), [review, fwVersion]);
   const [show, setShow] = useState(false);
   const firedFor = useRef<string | null>(null);
 

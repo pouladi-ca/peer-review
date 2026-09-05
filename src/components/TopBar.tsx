@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
+import { useAllFrameworks, useFramework } from '../hooks/useFramework';
 import { ArrowLeft, Sun, Moon, Monitor, Command, Keyboard, Scan, Clock, Check, Loader2 } from 'lucide-react';
 import { useStore } from '../lib/store';
-import { FRAMEWORKS, getFramework } from '../lib/frameworks';
+
 import { computeProgress } from '../lib/progress';
 import { formatDuration, mod } from '../lib/format';
 import { IconButton, ProgressRing, Wordmark, Kbd } from './ui';
@@ -14,7 +15,8 @@ export function TopBar() {
   const saveState = useStore((s) => s.saveState);
   const update = useStore((s) => s.update);
   const [showProgress, setShowProgress] = useState(false);
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
+  const frameworks = useAllFrameworks();
   const progress = useMemo(() => computeProgress(review, fw), [review, fw]);
 
   const cycleTheme = () => setTheme(theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system');
@@ -41,12 +43,31 @@ export function TopBar() {
       </div>
       <div className="topbar-right">
         <label className="field-inline topbar-fw" title={fw.blurb}>
-          <select value={review.frameworkId} onChange={(e) => useStore.getState().setFramework(e.target.value)} aria-label="Review framework">
-            {FRAMEWORKS.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
+          <select
+            value={review.frameworkId}
+            onChange={(e) => {
+              if (e.target.value === '__manage') useStore.getState().openFrameworkEditor();
+              else useStore.getState().setFramework(e.target.value);
+            }}
+            aria-label="Review framework"
+          >
+            <optgroup label="Built in">
+              {frameworks.filter((f) => !f.custom).map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </optgroup>
+            {frameworks.some((f) => f.custom) && (
+              <optgroup label="Yours">
+                {frameworks.filter((f) => f.custom).map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <option value="__manage">Manage frameworks…</option>
           </select>
         </label>
         <span className="chip chip-quiet" title="Active time on this review">

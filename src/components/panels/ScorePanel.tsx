@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
+import { useFramework } from '../../hooks/useFramework';
 import { ChevronDown, Target, AlertTriangle, MapPin } from 'lucide-react';
 import { useStore } from '../../lib/store';
-import { criterionScale, getFramework, scoreLabel, type Criterion, type ScaleDef } from '../../lib/frameworks';
+import { criterionScale, scoreLabel, type Criterion, type ScaleDef } from '../../lib/frameworks';
 import type { Annotation } from '../../lib/types';
 import { AutoTextarea, KindIcon, KIND_ORDER } from '../ui';
 import { clip } from '../../lib/format';
 
 export function ScorePanel() {
   const review = useStore((s) => s.review)!;
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   const core = fw.criteria.filter((c) => c.group === 'core');
   const additional = fw.criteria.filter((c) => c.group === 'additional');
   const [showAdditional, setShowAdditional] = useState(false);
@@ -154,7 +155,7 @@ function LinkedNotes({ notes }: { notes: Annotation[] }) {
 function CriterionCard({ criterion: c, compact }: { criterion: Criterion; compact?: boolean }) {
   const review = useStore((s) => s.review)!;
   const update = useStore((s) => s.update);
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   const scale = criterionScale(fw, c);
   const score = review.scores[c.id];
   const focused = review.focusCriterionId === c.id;
@@ -221,7 +222,7 @@ function CriterionCard({ criterion: c, compact }: { criterion: Criterion; compac
 function OverallCard({ consistency }: { consistency: string | null }) {
   const review = useStore((s) => s.review)!;
   const update = useStore((s) => s.update);
-  const fw = getFramework(review.frameworkId);
+  const fw = useFramework(review.frameworkId);
   return (
     <section className="card overall">
       <div className="card-title">{fw.overall.label}</div>
