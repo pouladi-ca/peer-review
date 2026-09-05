@@ -148,7 +148,8 @@ export function PdfViewer() {
       return;
     }
     const rects = mergeLineRects(raw.map((r) => ({ x: (r.left - pr.left) / pr.width, y: (r.top - pr.top) / pr.height, w: r.width / pr.width, h: r.height / pr.height })));
-    const quote = sel.toString().replace(/\s+/g, ' ').trim();
+    const rawQuote = sel.toString().replace(/\s+/g, ' ').trim();
+    const quote = doc.ligatures ? doc.ligatures.fix(rawQuote) : rawQuote;
     if (!quote) {
       setPending(null);
       return;

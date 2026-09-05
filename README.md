@@ -27,7 +27,10 @@ mechanical weight off that process so your attention stays on the science.
   documents) and start reading immediately, with a crisp text layer, search, an
   auto-detected section outline, and a page map that tracks what you have read.
   Mixed portrait and landscape pages (budget tables, Gantt charts) each fit the
-  width, and non-embedded standard fonts render correctly.
+  width, and non-embedded standard fonts render correctly. PDFs whose fonts
+  lose ligature glyphs ("Jus fica on" for "Justification", common in portal
+  exports) are repaired using the document's own vocabulary, so search,
+  headings, and quoted passages read correctly.
 - **Detects the essentials.** Title, applicant, institution, mechanism, budget,
   duration, the specific aims, the key vocabulary, and counts of figures,
   tables, and references, all pulled from the text and editable.

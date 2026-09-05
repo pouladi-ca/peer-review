@@ -87,6 +87,8 @@ export interface Review {
 export interface TextRun extends Rect {
   str: string;
   size: number; // font size in PDF units
+  /** Index into PageText.lines. */
+  line: number;
 }
 
 export interface PageText {

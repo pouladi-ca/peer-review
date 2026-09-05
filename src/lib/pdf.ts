@@ -3,6 +3,7 @@ import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { PageText, TextLine, TextRun } from './types';
+import { buildLigatureRepair, type LigatureRepair } from './analyze/ligatures';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -85,7 +86,8 @@ export async function extractPage(page: PDFPageProxy): Promise<PageText> {
         merged.push({ ...it, str: it.str.replace(/\s+$/g, '') || it.str });
       }
     }
-    const lineRuns: TextRun[] = merged.map((m) => ({ str: m.str.trim(), x: m.x / W, y: m.y / H, w: m.w / W, h: m.h / H, size: m.size }));
+    const lineIndex = textLines.length;
+    const lineRuns: TextRun[] = merged.map((m) => ({ str: m.str.trim(), x: m.x / W, y: m.y / H, w: m.w / W, h: m.h / H, size: m.size, line: lineIndex }));
     const text = lineRuns.map((r) => r.str).join(' ');
     runs.push(...lineRuns);
     parts.push(text);
@@ -103,6 +105,27 @@ export async function extractAllPages(pdf: PDFDocumentProxy, onProgress?: (done:
     onProgress?.(i, pdf.numPages);
   }
   return out;
+}
+
+/**
+ * Repair ligature glyphs that pdf.js emitted as U+0000 (see analyze/ligatures).
+ * Mutates the pages so runs, lines, and text stay aligned, and returns the
+ * repair so the caller can apply it to text copied from the text layer.
+ */
+export function repairLigatures(pages: PageText[]): LigatureRepair {
+  const repair = buildLigatureRepair(pages.map((p) => p.text));
+  if (repair.count === 0) return repair;
+  for (const page of pages) {
+    if (!page.text.includes('\u0000')) continue;
+    for (const run of page.runs) run.str = repair.fix(run.str);
+    const byLine = new Map<number, string[]>();
+    for (const run of page.runs) byLine.set(run.line, [...(byLine.get(run.line) ?? []), run.str]);
+    page.lines.forEach((line, i) => {
+      line.text = (byLine.get(i) ?? []).join(' ');
+    });
+    page.text = page.lines.map((l) => l.text).join('\n');
+  }
+  return repair;
 }
 
 export async function sha256(buf: ArrayBuffer): Promise<string> {

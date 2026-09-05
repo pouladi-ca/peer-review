@@ -10,9 +10,9 @@ import { detectFramework, getFramework, scoreLabel, NIH_SCALE } from '../framewo
 function makePage(page: number, lines: [string, number, number][]): PageText {
   const textLines: TextLine[] = [];
   const runs: TextRun[] = [];
-  for (const [text, size, y] of lines) {
+  for (const [i, [text, size, y]] of lines.entries()) {
     textLines.push({ text, size, y, x: 0.1, page });
-    runs.push({ str: text, x: 0.1, y, w: Math.min(0.8, text.length * 0.008), h: 0.02, size });
+    runs.push({ str: text, x: 0.1, y, w: Math.min(0.8, text.length * 0.008), h: 0.02, size, line: i });
   }
   return { page, width: 612, height: 792, text: lines.map((l) => l[0]).join('\n'), lines: textLines, runs };
 }

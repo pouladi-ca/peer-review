@@ -4,7 +4,8 @@ import { nanoid } from 'nanoid';
 import { db } from './db';
 import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef } from './frameworks';
 import { getSetting, setSetting } from './db';
-import { extractAllPages, loadPdf, type PDFDocumentProxy } from './pdf';
+import { extractAllPages, loadPdf, repairLigatures, type PDFDocumentProxy } from './pdf';
+import type { LigatureRepair } from './analyze/ligatures';
 import { detectOutline } from './analyze/outline';
 import { extractFacts } from './analyze/facts';
 import type { Annotation, DocMeta, DocRole, NoteKind, OutlineEntry, PageText, QuickFacts, Rect, Review } from './types';
@@ -22,6 +23,8 @@ export interface RuntimeDoc {
   status: 'loading' | 'ready' | 'error';
   progress: number;
   error?: string;
+  /** Present when the PDF had unmapped ligature glyphs that were repaired. */
+  ligatures?: LigatureRepair;
 }
 
 export interface Jump {
@@ -180,11 +183,12 @@ export const useStore = create<State>((set, get) => {
       const pages = await extractAllPages(pdf, (done, total) => {
         set((s) => ({ docs: { ...s.docs, [docId]: { ...s.docs[docId], progress: done / total } } }));
       });
+      const ligatures = repairLigatures(pages);
       const review = get().review;
       const fw = review ? getFramework(review.frameworkId) : undefined;
       const outline = detectOutline(pages, fw);
       const facts = extractFacts(pages);
-      set((s) => ({ docs: { ...s.docs, [docId]: { id: docId, pdf, pages, outline, facts, status: 'ready', progress: 1 } } }));
+      set((s) => ({ docs: { ...s.docs, [docId]: { id: docId, pdf, pages, outline, facts, status: 'ready', progress: 1, ligatures: ligatures.count ? ligatures : undefined } } }));
       return { pages, facts };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
