@@ -27,7 +27,8 @@ mechanical weight off that process so your attention stays on the science.
   documents) and start reading immediately, with a crisp text layer, search, an
   auto-detected section outline, and a page map that tracks what you have read.
   Mixed portrait and landscape pages (budget tables, Gantt charts) each fit the
-  width, and non-embedded standard fonts render correctly. PDFs whose fonts
+  width or, with *Fit whole page*, the window; non-embedded standard fonts
+  render correctly. PDFs whose fonts
   lose ligature glyphs ("Jus fica on" for "Justification", common in portal
   exports) are repaired using the document's own vocabulary, so search,
   headings, and quoted passages read correctly.

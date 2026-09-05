@@ -113,6 +113,18 @@ test('focus mode and a hidden navigator keep the document visible', async ({ pag
   await expect(page.locator('.ws')).not.toHaveClass(/is-focus/);
 });
 
+test('fit whole page makes each page fully visible', async ({ page }) => {
+  await startWithSample(page);
+  const viewH = await page.locator('.viewer-scroll').evaluate((el) => el.clientHeight);
+  const before = await page.locator('.page-slot').first().evaluate((el) => el.getBoundingClientRect().height);
+  expect(before).toBeGreaterThan(viewH); // fit width: a letter page is taller than the viewport
+  await page.getByRole('button', { name: 'Fit whole page' }).click();
+  await expect.poll(() => page.locator('.page-slot').first().evaluate((el) => el.getBoundingClientRect().height)).toBeLessThanOrEqual(viewH);
+  await expect(page.getByRole('button', { name: 'Fit whole page' })).toHaveClass(/is-active/);
+  await page.getByRole('button', { name: 'Fit width' }).click();
+  await expect.poll(() => page.locator('.page-slot').first().evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThan(viewH);
+});
+
 test('scoring a criterion and checking the draft preview', async ({ page }) => {
   await startWithSample(page);
   await page.locator('.panel-tab', { hasText: 'Score' }).click();

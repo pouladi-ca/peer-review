@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFramework } from '../../hooks/useFramework';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, PanelLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, StretchHorizontal, PanelLeft, Loader2 } from 'lucide-react';
 import { useStore, selectActiveDoc, selectActiveMeta } from '../../lib/store';
 import { criterionForHint, sectionAt } from '../../lib/analyze/outline';
 import { searchPages } from '../../lib/analyze/search';
@@ -21,6 +21,7 @@ export function PdfViewer() {
   const meta = useStore(selectActiveMeta);
   const review = useStore((s) => s.review)!;
   const zoom = useStore((s) => s.zoom);
+  const fitMode = useStore((s) => s.fitMode);
   const page = useStore((s) => s.page);
   const jump = useStore((s) => s.jump);
   const navOpen = useStore((s) => s.navOpen);
@@ -43,17 +44,20 @@ export function PdfViewer() {
   // zoom. Applications often mix portrait pages with landscape budget tables or
   // Gantt charts; per-page fitting keeps each readable at its natural width.
   const fitW = Math.min(MAX_FIT, Math.max(120, containerW - PAD * 2));
+  const fitH = Math.max(160, viewH - PAD * 2);
   const layout = useMemo(() => {
     let top = PAD;
     return dims.map((d) => {
-      const scale = Math.max(0.2, (fitW / Math.max(1, d.w)) * zoom);
+      const byWidth = fitW / Math.max(1, d.w);
+      const base = fitMode === 'page' ? Math.min(byWidth, fitH / Math.max(1, d.h)) : byWidth;
+      const scale = Math.max(0.2, base * zoom);
       const w = d.w * scale;
       const h = d.h * scale;
       const entry = { top, w, h, scale };
       top += h + GAP;
       return entry;
     });
-  }, [dims, fitW, zoom]);
+  }, [dims, fitW, fitH, fitMode, zoom]);
   const totalH = layout.length ? layout[layout.length - 1].top + layout[layout.length - 1].h + PAD : 0;
 
   useLayoutEffect(() => {
@@ -275,11 +279,13 @@ export function PdfViewer() {
         </div>
         <div className="viewer-toolbar-group">
           <IconButton icon={ZoomOut} label="Zoom out (-)" onClick={() => useStore.getState().setZoom(zoom - 0.1)} />
-          <button type="button" className="zoom-value" onClick={() => useStore.getState().setZoom(1)} title="Reset to fit width">
+          <button type="button" className="zoom-value" onClick={() => useStore.getState().setZoom(1)} title={`Reset to 100% of fit ${fitMode}`}>
             {Math.round(zoom * 100)}%
           </button>
           <IconButton icon={ZoomIn} label="Zoom in (+)" onClick={() => useStore.getState().setZoom(zoom + 0.1)} />
-          <IconButton icon={Maximize} label="Fit width" onClick={() => useStore.getState().setZoom(1)} />
+          <span className="toolbar-sep" aria-hidden />
+          <IconButton icon={StretchHorizontal} label="Fit width" active={fitMode === 'width'} onClick={() => useStore.getState().setFitMode('width')} />
+          <IconButton icon={Maximize} label="Fit whole page" active={fitMode === 'page'} onClick={() => useStore.getState().setFitMode('page')} />
         </div>
       </div>
       <div

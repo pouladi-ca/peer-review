@@ -1033,6 +1033,12 @@ button.chip:hover {
   text-overflow: ellipsis;
   padding: 0 10px;
 }
+.toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 4px;
+}
 .zoom-value {
   min-width: 46px;
   text-align: center;

@@ -13,6 +13,8 @@ import type { Annotation, DocMeta, DocRole, NoteKind, OutlineEntry, PageText, Qu
 export type PanelTab = 'brief' | 'notes' | 'score' | 'checklist' | 'draft';
 export type NavTab = 'outline' | 'search' | 'pages';
 export type Theme = 'light' | 'dark' | 'system';
+/** How pages are sized at 100% zoom: to the container width, or so the whole page is visible. */
+export type FitMode = 'width' | 'page';
 
 export interface RuntimeDoc {
   id: string;
@@ -57,6 +59,7 @@ interface State {
   navTab: NavTab;
   page: number;
   zoom: number;
+  fitMode: FitMode;
   theme: Theme;
   focusMode: boolean;
   navOpen: boolean;
@@ -91,6 +94,7 @@ interface State {
   setNavTab(tab: NavTab): void;
   setPage(page: number): void;
   setZoom(zoom: number): void;
+  setFitMode(mode: FitMode): void;
   setTheme(theme: Theme): void;
   toggleFocus(): void;
   toggleNav(): void;
@@ -139,6 +143,14 @@ export function newReview(partial: Partial<Review> = {}): Review {
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function readFitMode(): FitMode {
+  try {
+    return localStorage.getItem('panelist.fit') === 'page' ? 'page' : 'width';
+  } catch {
+    return 'width';
+  }
+}
 
 function readTheme(): Theme {
   try {
@@ -207,6 +219,7 @@ export const useStore = create<State>((set, get) => {
     navTab: 'outline',
     page: 1,
     zoom: 1,
+    fitMode: readFitMode(),
     theme: readTheme(),
     focusMode: false,
     navOpen: true,
@@ -407,6 +420,15 @@ export const useStore = create<State>((set, get) => {
     },
 
     setZoom: (zoom) => set({ zoom: Math.min(3, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
+
+    setFitMode(fitMode) {
+      try {
+        localStorage.setItem('panelist.fit', fitMode);
+      } catch {
+        /* ignore */
+      }
+      set({ fitMode, zoom: 1 });
+    },
 
     setTheme(theme) {
       applyTheme(theme);
