@@ -312,6 +312,19 @@ export const useStore = create<State>((set, get) => {
         return;
       }
     }
+    // A review made before sync existed has its PDF only in this browser: put it on the
+    // server now so other devices, and the reading view, can have it.
+    void (async () => {
+      try {
+        if (await api.fileExists(reviewId, doc.id)) return;
+        const setMsg = (message: string) => set((s) => ({ reflow: { ...s.reflow, [doc.id]: { ...(s.reflow[doc.id] ?? { status: 'none' }), status: 'none', message } } }));
+        setMsg('Uploading the PDF to your server…');
+        await api.uploadFile(reviewId, doc.id, file!.blob, (f) => setMsg(`Uploading the PDF to your server… ${Math.round(f * 100)}%`));
+        if (get().review?.id === reviewId) void get().ensureReflow(doc.id);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
     await loadRuntimeDoc(doc.id, file.blob);
     const pdf = get().docs[doc.id]?.pdf;
     if (pdf && get().review?.docs.find((d) => d.id === doc.id)?.pages !== pdf.numPages) {
@@ -653,10 +666,11 @@ export const useStore = create<State>((set, get) => {
           try {
             status = await api.startReflow(reviewId, docId);
           } catch {
-            setState({ status: 'none', message: 'Waiting for the PDF to finish uploading' });
+            const cur = get().reflow[docId];
+            if (!cur?.message?.startsWith('Uploading')) setState({ status: 'none', message: 'Waiting for the PDF to reach your server…' });
             setTimeout(() => {
               if (get().review?.id === reviewId) void get().ensureReflow(docId);
-            }, 3000);
+            }, 4000);
             return;
           }
         }
