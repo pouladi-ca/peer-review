@@ -6,7 +6,7 @@ import { api, onUnauthorized } from './api';
 import { SyncEngine, deviceId, type SyncStatus } from './sync/engine';
 import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef } from './frameworks';
 import { getSetting, setSetting } from './db';
-import { extractAllPages, loadPdf, repairLigatures, type PDFDocumentProxy } from './pdf';
+import { extractAllPages, loadPdf, pageDims, repairLigatures, type PDFDocumentProxy } from './pdf';
 import type { LigatureRepair } from './analyze/ligatures';
 import type { ReflowDoc, ReflowStatus } from './reflow/types';
 import { isTouchLike } from '../hooks/useMedia';
@@ -33,6 +33,8 @@ export interface ReflowState {
 export interface RuntimeDoc {
   id: string;
   pdf?: PDFDocumentProxy;
+  /** Page sizes at scale 1, known as soon as the PDF parses. */
+  dims?: { w: number; h: number }[];
   pages: PageText[];
   outline: OutlineEntry[];
   facts: QuickFacts;
@@ -94,6 +96,8 @@ interface State {
   filter: NoteFilter;
   saveState: 'idle' | 'saving' | 'saved';
   busy: string | null;
+  /** PDF uploads in flight, by document id, for the progress strip. */
+  transfers: Record<string, { name: string; fraction: number }>;
   customFrameworks: CustomFrameworkDef[];
   /** Bumped whenever the set of frameworks changes so views re-resolve them. */
   frameworksVersion: number;
@@ -243,12 +247,18 @@ export const useStore = create<State>((set, get) => {
     }, 500);
   };
 
-  const loadRuntimeDoc = async (docId: string, blob: Blob) => {
+  /**
+   * Parse a PDF and extract its text. The viewer can show pages as soon as `onPdf`
+   * fires; facts, outline, and search fill in when extraction finishes.
+   */
+  const loadRuntimeDoc = async (docId: string, blob: Blob, onPdf?: (pdf: PDFDocumentProxy) => void) => {
     set((s) => ({ docs: { ...s.docs, [docId]: { id: docId, pages: [], outline: [], facts: {}, status: 'loading', progress: 0 } } }));
     try {
       const buf = await blob.arrayBuffer();
       const pdf = await loadPdf(buf);
-      set((s) => ({ docs: { ...s.docs, [docId]: { ...s.docs[docId], pdf } } }));
+      const dims = await pageDims(pdf);
+      set((s) => ({ docs: { ...s.docs, [docId]: { ...s.docs[docId], pdf, dims } } }));
+      onPdf?.(pdf);
       const pages = await extractAllPages(pdf, (done, total) => {
         set((s) => ({ docs: { ...s.docs, [docId]: { ...s.docs[docId], progress: done / total } } }));
       });
@@ -257,7 +267,7 @@ export const useStore = create<State>((set, get) => {
       const fw = review ? getFramework(review.frameworkId) : undefined;
       const outline = detectOutline(pages, fw);
       const facts = extractFacts(pages);
-      set((s) => ({ docs: { ...s.docs, [docId]: { id: docId, pdf, pages, outline, facts, status: 'ready', progress: 1, ligatures: ligatures.count ? ligatures : undefined } } }));
+      set((s) => ({ docs: { ...s.docs, [docId]: { id: docId, pdf, dims, pages, outline, facts, status: 'ready', progress: 1, ligatures: ligatures.count ? ligatures : undefined } } }));
       return { pages, facts };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -297,6 +307,25 @@ export const useStore = create<State>((set, get) => {
     return engine;
   };
 
+  /** Upload a PDF to the server, reporting progress in the strip and in the reading view's status. */
+  const uploadDoc = async (reviewId: string, doc: DocMeta, blob: Blob): Promise<void> => {
+    const setMsg = (message: string) => set((s) => ({ reflow: { ...s.reflow, [doc.id]: { ...(s.reflow[doc.id] ?? { status: 'none' }), status: 'none', message } } }));
+    const setFraction = (fraction: number) => set((s) => ({ transfers: { ...s.transfers, [doc.id]: { name: doc.name, fraction } } }));
+    setFraction(0);
+    setMsg('Uploading the PDF to your server…');
+    try {
+      await api.uploadFile(reviewId, doc.id, blob, (f) => {
+        setFraction(f);
+        setMsg(`Uploading the PDF to your server… ${Math.round(f * 100)}%`);
+      });
+    } finally {
+      set((s) => {
+        const { [doc.id]: _done, ...rest } = s.transfers;
+        return { transfers: rest };
+      });
+    }
+  };
+
   /** Load a document's PDF from local storage, or download it from the server. */
   const loadDocFromAnywhere = async (reviewId: string, doc: DocMeta): Promise<void> => {
     let file = await db.files.get(doc.id);
@@ -317,9 +346,7 @@ export const useStore = create<State>((set, get) => {
     void (async () => {
       try {
         if (await api.fileExists(reviewId, doc.id)) return;
-        const setMsg = (message: string) => set((s) => ({ reflow: { ...s.reflow, [doc.id]: { ...(s.reflow[doc.id] ?? { status: 'none' }), status: 'none', message } } }));
-        setMsg('Uploading the PDF to your server…');
-        await api.uploadFile(reviewId, doc.id, file!.blob, (f) => setMsg(`Uploading the PDF to your server… ${Math.round(f * 100)}%`));
+        await uploadDoc(reviewId, doc, file!.blob);
         if (get().review?.id === reviewId) void get().ensureReflow(doc.id);
       } catch (e) {
         console.error(e);
@@ -363,6 +390,7 @@ export const useStore = create<State>((set, get) => {
     filter: { kinds: ['strength', 'weakness', 'question', 'note'], query: '' },
     saveState: 'idle',
     busy: null,
+    transfers: {},
     customFrameworks: [],
     frameworksVersion: 0,
     frameworkEditor: { open: false },
@@ -445,10 +473,12 @@ export const useStore = create<State>((set, get) => {
     },
 
     async createReview(files, opts = {}) {
-      set({ busy: 'Reading your PDF…' });
+      set({ busy: 'Opening your PDF…' });
       const review = newReview({ frameworkId: opts.frameworkId ?? 'generic' });
       const first = files[0];
       review.title = first.name.replace(/\.pdf$/i, '');
+      const initialTitle = review.title;
+      const initialFramework = review.frameworkId;
       for (const [i, file] of files.entries()) {
         const id = nanoid(10);
         review.docs.push({ id, name: file.name, size: file.size, pages: 0, addedAt: Date.now(), role: i === 0 ? 'application' : 'supporting' });
@@ -458,28 +488,44 @@ export const useStore = create<State>((set, get) => {
       set((s) => ({ reviews: [review, ...s.reviews], review, activeDocId: review.docs[0].id, page: 1, tab: 'brief', docs: {}, selectedNoteId: null, editingNoteId: null }));
       void ensureEngine().recordChanges(null, review);
       // Upload the PDFs so other devices can open this review; extraction proceeds meanwhile.
+      // Progress shows in the workspace strip, never in the modal overlay.
       const uploads = review.docs.map((doc, i) =>
-        api.uploadFile(review.id, doc.id, files[i], (f) => set({ busy: `Uploading ${doc.name} (${Math.round(f * 100)}%)…` })).catch((e) => {
+        uploadDoc(review.id, doc, files[i]).catch((e) => {
           console.error(e);
           get().notify(`${doc.name} could not be uploaded yet; it will stay on this device until it can.`, 'error');
         }),
       );
-      for (const [i, doc] of review.docs.entries()) {
-        const res = await loadRuntimeDoc(doc.id, files[i]);
-        const pdf = get().docs[doc.id]?.pdf;
-        get().update((r) => {
-          const d = r.docs.find((x) => x.id === doc.id);
-          if (d && pdf) d.pages = pdf.numPages;
+      // The workspace opens as soon as the first PDF parses; text extraction (facts,
+      // outline, framework detection) continues in the background with its own progress.
+      let markOpened!: () => void;
+      const opened = new Promise<void>((resolve) => (markOpened = resolve));
+      void (async () => {
+        for (const [i, doc] of review.docs.entries()) {
+          const res = await loadRuntimeDoc(doc.id, files[i], (pdf) => {
+            get().update((r) => {
+              const d = r.docs.find((x) => x.id === doc.id);
+              if (d) d.pages = pdf.numPages;
+            });
+            if (i === 0) markOpened();
+          });
+          if (i === 0) markOpened(); // also on failure, so the viewer can show the error
+          if (get().review?.id !== review.id) continue;
           if (i === 0 && res) {
-            r.facts = res.facts;
-            if (res.facts.title && res.facts.title.length <= 160) r.title = res.facts.title;
-            if (!opts.frameworkId) {
-              const detected = detectFramework(res.pages.map((p) => p.text).join('\n'));
-              if (detected) r.frameworkId = detected;
-            }
+            // Extraction finishes after the reviewer may already be working: fill in only
+            // what they have not set themselves.
+            get().update((r) => {
+              const kept = Object.fromEntries(Object.entries(r.facts).filter(([, v]) => v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)));
+              r.facts = { ...res.facts, ...kept };
+              if (r.title === initialTitle && res.facts.title && res.facts.title.length <= 160) r.title = res.facts.title;
+              if (!opts.frameworkId && r.frameworkId === initialFramework) {
+                const detected = detectFramework(res.pages.map((p) => p.text).join('\n'));
+                if (detected) r.frameworkId = detected;
+              }
+            });
           }
-        });
-      }
+        }
+      })();
+      await opened;
       set({ busy: null });
       void Promise.all(uploads).then(() => {
         if (get().review?.id === review.id) for (const d of review.docs) void get().ensureReflow(d.id);

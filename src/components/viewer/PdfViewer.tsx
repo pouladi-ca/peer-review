@@ -40,8 +40,9 @@ export function PdfViewer() {
   const [flash, setFlash] = useState<{ page: number; rect: Rect; id: number } | null>(null);
   const fw = useFramework(review.frameworkId);
 
-  const ready = doc?.status === 'ready' && doc.pdf;
-  const dims = useMemo(() => (ready ? doc.pages.map((p) => ({ w: p.width, h: p.height })) : []), [ready, doc]);
+  // Pages render as soon as the PDF parses; text extraction continues behind the progress strip.
+  const ready = doc?.status !== 'error' && doc?.pdf && doc.dims;
+  const dims = useMemo(() => (ready ? doc.dims! : []), [ready, doc]);
 
   // Layout: fit every page to the container width individually, then apply
   // zoom. Applications often mix portrait pages with landscape budget tables or
@@ -350,7 +351,7 @@ export function PdfViewer() {
             ) : (
               <>
                 <Loader2 size={22} className="spin" />
-                <div>Reading {meta?.name ?? 'the document'}…</div>
+                <div>Opening {meta?.name ?? 'the document'}…</div>
                 <div className="progress-bar">
                   <span style={{ width: `${Math.round((doc?.progress ?? 0) * 100)}%` }} />
                 </div>

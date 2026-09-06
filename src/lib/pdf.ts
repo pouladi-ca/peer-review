@@ -97,6 +97,17 @@ export async function extractPage(page: PDFPageProxy): Promise<PageText> {
   return { page: page.pageNumber, width: viewport.width, height: viewport.height, text: parts.join('\n'), lines: textLines, runs };
 }
 
+/** Page sizes at scale 1, cheap enough to run before text extraction so the viewer can lay pages out at once. */
+export async function pageDims(pdf: PDFDocumentProxy): Promise<{ w: number; h: number }[]> {
+  const out: { w: number; h: number }[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const v = page.getViewport({ scale: 1 });
+    out.push({ w: v.width, h: v.height });
+  }
+  return out;
+}
+
 export async function extractAllPages(pdf: PDFDocumentProxy, onProgress?: (done: number, total: number) => void): Promise<PageText[]> {
   const out: PageText[] = [];
   for (let i = 1; i <= pdf.numPages; i++) {

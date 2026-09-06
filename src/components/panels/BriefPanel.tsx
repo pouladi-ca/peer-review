@@ -48,12 +48,13 @@ export function BriefPanel() {
         </div>
       </section>
 
-      {doc && doc.status !== 'ready' && (
+      {doc && doc.status === 'loading' && (
         <section className="card">
-          <div className="card-title">Reading the document</div>
+          <div className="card-title">{doc.pdf ? `Reading page ${Math.max(1, Math.round(doc.progress * doc.pdf.numPages))} of ${doc.pdf.numPages}` : 'Opening the PDF'}</div>
           <div className="progress-bar">
             <span style={{ width: `${Math.round(doc.progress * 100)}%` }} />
           </div>
+          <p className="card-hint">You can start reading now. The facts, outline, search, and checklist evidence fill in when this finishes.</p>
         </section>
       )}
 
