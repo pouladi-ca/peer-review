@@ -1,4 +1,4 @@
-app = "panelist-review"
+app = "panelist"
 primary_region = "sjc"
 
 [build]
