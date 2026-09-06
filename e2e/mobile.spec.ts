@@ -7,6 +7,39 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const shots = path.join(dir, '..', 'screenshots');
 
 /** Runs in the "phone" project (iPhone 13 viewport, touch). */
+test('the phone library is compact and never overflows', async ({ page }) => {
+  await login(page);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  await expect(page.getByRole('button', { name: 'Add a proposal PDF' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await page.screenshot({ path: path.join(shots, '19-phone-library.png') });
+});
+
+test('the view toggle stays within reach and switches both ways on a phone', async ({ page }) => {
+  await login(page);
+  await page.getByRole('button', { name: 'Try a sample application', exact: true }).click();
+  const toggle = page.getByRole('radiogroup', { name: 'View' });
+  await expect(toggle).toBeVisible();
+  const box = (await toggle.boundingBox())!;
+  const vw = page.viewportSize()!.width;
+  expect(box.x + box.width).toBeLessThanOrEqual(vw);
+  await page.getByRole('radio', { name: 'Pages' }).click();
+  await expect(page.locator('.pdf-canvas').first()).toBeVisible({ timeout: 30_000 });
+  const box2 = (await toggle.boundingBox())!;
+  expect(box2.x + box2.width).toBeLessThanOrEqual(vw);
+  await page.screenshot({ path: path.join(shots, '20-phone-pages.png') });
+  await page.getByRole('radio', { name: 'Read' }).click();
+  await expect(page.locator('.read-content')).toBeVisible({ timeout: 60_000 });
+  // The "more" menu holds the secondary controls.
+  await page.getByRole('button', { name: 'More' }).click();
+  await expect(page.getByRole('menuitem', { name: /Sign out/ })).toBeVisible();
+  const menu = (await page.locator('.more-pop').boundingBox())!;
+  expect(menu.x).toBeGreaterThanOrEqual(0);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(shots, '21-phone-more.png') });
+});
+
 test('a phone gets the tab bar, sheets, and a docked tagging toolbar', async ({ page }) => {
   await login(page);
   await page.getByRole('button', { name: 'Try a sample application', exact: true }).click();

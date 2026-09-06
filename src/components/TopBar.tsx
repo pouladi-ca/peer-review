@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAllFrameworks, useFramework } from '../hooks/useFramework';
-import { ArrowLeft, Sun, Moon, Monitor, Command, Keyboard, Scan, Clock, Check, Loader2, Cloud, CloudOff, RefreshCw, LogOut } from 'lucide-react';
+import { ArrowLeft, Sun, Moon, Monitor, Command, Keyboard, Scan, Clock, Check, Loader2, Cloud, CloudOff, RefreshCw, LogOut, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
 import { useStore } from '../lib/store';
 
 import { computeProgress } from '../lib/progress';
@@ -16,6 +16,7 @@ export function TopBar() {
   const sync = useStore((s) => s.sync);
   const update = useStore((s) => s.update);
   const [showProgress, setShowProgress] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const fw = useFramework(review.frameworkId);
   const frameworks = useAllFrameworks();
   const progress = useMemo(() => computeProgress(review, fw), [review, fw]);
@@ -116,6 +117,44 @@ export function TopBar() {
         <button type="button" className="btn btn-ghost btn-s palette-btn" onClick={() => useStore.getState().setPalette(true)} title="Command palette">
           <Command size={14} /> <Kbd>{mod} K</Kbd>
         </button>
+        <div className="more-wrap">
+          <IconButton icon={MoreHorizontal} label="More" active={showMore} onClick={() => setShowMore((v) => !v)} />
+          {showMore && (
+            <>
+              <div className="more-scrim" onClick={() => setShowMore(false)} />
+              <div className="popover more-pop" role="menu">
+                <label className="more-item more-select">
+                  <SlidersHorizontal size={14} />
+                  <select
+                    value={review.frameworkId}
+                    onChange={(e) => {
+                      if (e.target.value === '__manage') useStore.getState().openFrameworkEditor();
+                      else useStore.getState().setFramework(e.target.value);
+                      setShowMore(false);
+                    }}
+                    aria-label="Review framework"
+                  >
+                    {frameworks.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                    <option value="__manage">Manage frameworks…</option>
+                  </select>
+                </label>
+                <button type="button" className="more-item" role="menuitem" onClick={() => (cycleTheme(), setShowMore(false))}>
+                  <ThemeIcon size={14} /> Theme: {theme}
+                </button>
+                <button type="button" className="more-item" role="menuitem" onClick={() => (useStore.getState().syncNow(), setShowMore(false))}>
+                  <RefreshCw size={14} /> Sync now
+                </button>
+                <button type="button" className="more-item is-danger" role="menuitem" onClick={() => useStore.getState().signOut()}>
+                  <LogOut size={14} /> Sign out of this device
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );

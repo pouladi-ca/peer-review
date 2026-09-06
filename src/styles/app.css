@@ -3433,3 +3433,233 @@ mark.rhl.has-comment::after {
 .ws.is-phone .view-toggle .seg-btn span {
   display: none;
 }
+
+/* ---------- phone polish ---------- */
+.more-wrap {
+  position: relative;
+  display: none;
+}
+.more-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+}
+.more-pop {
+  width: min(300px, calc(100vw - 24px));
+  padding: 6px;
+  z-index: 60;
+}
+.more-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 10px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-s);
+  text-align: left;
+  font-size: 14px;
+  color: var(--text);
+}
+.more-item:hover {
+  background: var(--surface-3);
+}
+.more-item.is-danger {
+  color: var(--danger);
+}
+.more-select {
+  min-width: 0;
+}
+.more-select select {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  font-size: 13px;
+  background-color: var(--surface-2);
+}
+.ws.is-phone .more-wrap {
+  display: block;
+}
+.ws.is-phone .topbar .icon-btn[aria-label^='Sign out'],
+.ws.is-phone .topbar .icon-btn[aria-label^='Theme'] {
+  display: none;
+}
+.ws.is-phone .topbar {
+  gap: 6px;
+}
+.ws.is-phone .title-input {
+  max-width: none;
+  flex: 1;
+  font-size: 15px;
+  padding: 6px 8px;
+}
+.ws.is-phone .topbar-left {
+  flex: 1;
+  min-width: 0;
+}
+.ws.is-phone .topbar-right {
+  flex: 0 0 auto;
+}
+/* Reader toolbars on phones: page navigation, zoom or text size, and the view toggle. */
+.ws.is-phone .viewer-toolbar {
+  padding: 0 6px;
+  gap: 4px;
+  overflow: hidden;
+}
+.ws.is-phone .viewer-toolbar .icon-btn {
+  width: 34px;
+  height: 34px;
+}
+.ws.is-phone .viewer-toolbar-group {
+  gap: 0;
+  flex: 0 0 auto;
+}
+.ws.is-phone .viewer-toolbar .icon-btn[aria-label^='Fit'],
+.ws.is-phone .viewer-toolbar .icon-btn[aria-label^='Figures'],
+.ws.is-phone .viewer-toolbar .toolbar-sep {
+  display: none;
+}
+.ws.is-phone .zoom-value {
+  min-width: 40px;
+  padding: 6px 2px;
+  font-size: 12px;
+}
+.ws.is-phone .page-ctrl {
+  font-size: 12.5px;
+  gap: 4px;
+}
+.ws.is-phone .page-ctrl input {
+  width: 40px;
+  padding: 5px 2px;
+}
+.ws.is-phone .view-toggle {
+  margin-left: 2px;
+}
+.ws.is-phone .view-toggle .seg-btn {
+  padding: 5px 9px;
+}
+
+/* Library on phones */
+@media (max-width: 719px) {
+  .library-top {
+    padding: calc(12px + env(safe-area-inset-top)) 16px 8px;
+    align-items: center;
+  }
+  .library-tag {
+    gap: 4px;
+  }
+  .library-tagline,
+  .library-tag .sync-state span,
+  .signout-btn span {
+    display: none;
+  }
+  .library-tag .sync-state {
+    min-width: 0;
+    padding: 6px;
+  }
+  .signout-btn {
+    padding: 6px;
+  }
+  .library-main {
+    padding: 4px 16px calc(32px + env(safe-area-inset-bottom));
+    gap: 20px;
+  }
+  .hero {
+    margin-top: 12px;
+  }
+  .hero h1 {
+    font-size: 28px;
+  }
+  .hero p {
+    font-size: 14px;
+  }
+  .review-list {
+    order: -1;
+  }
+  .review-list h2 {
+    font-size: 15px;
+    margin: 4px 0 8px;
+  }
+  .review-card {
+    padding: 6px 8px 6px 6px;
+  }
+  .review-card-main {
+    gap: 10px;
+  }
+  .review-card-title {
+    font-size: 14px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .review-card-meta {
+    font-size: 11.5px;
+    gap: 6px;
+  }
+  .dropzone {
+    padding: 16px;
+    text-align: left;
+    cursor: default;
+    border-style: solid;
+    border-width: 1px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .dropzone:hover {
+    border-color: var(--border);
+    background: var(--surface);
+  }
+  .dropzone-phone {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .dropzone-phone .dropzone-icon {
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    flex-shrink: 0;
+  }
+  .dropzone-phone .dropzone-title {
+    font-size: 16px;
+  }
+  .dropzone-phone .dropzone-sub {
+    margin-top: 2px;
+    font-size: 12.5px;
+  }
+  .dropzone-add {
+    width: 100%;
+    justify-content: center;
+    padding: 11px;
+    font-size: 14px;
+  }
+  .dropzone-row {
+    margin-top: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .dropzone-row .field-inline {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    font-size: 12px;
+  }
+  .dropzone-row .field-inline select {
+    width: 100%;
+  }
+  .dropzone-row .btn {
+    justify-content: center;
+  }
+  .features {
+    display: none;
+  }
+  .library-foot {
+    font-size: 11.5px;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  }
+}

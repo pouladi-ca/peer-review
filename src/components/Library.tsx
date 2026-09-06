@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
-import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw, Plus } from 'lucide-react';
+import { useIsPhone } from '../hooks/useMedia';
 import { useStore } from '../lib/store';
 import { getFramework } from '../lib/frameworks';
 import { useAllFrameworks } from '../hooks/useFramework';
@@ -18,6 +19,7 @@ export function Library() {
   const importReview = useStore((s) => s.importReview);
   const notify = useStore((s) => s.notify);
   const sync = useStore((s) => s.sync);
+  const isPhone = useIsPhone();
   const [frameworkId, setFrameworkId] = useState<string>('auto');
   const frameworks = useAllFrameworks();
   const [dragging, setDragging] = useState(false);
@@ -73,25 +75,29 @@ export function Library() {
       <header className="library-top">
         <Wordmark size="m" />
         <span className="library-tag">
-          <Lock size={12} /> Password protected, synced across your devices
-          <span className={`sync-state sync-${sync.state}`} title={sync.message ?? ''}>
-            {sync.state === 'syncing' ? <RefreshCw size={12} className="spin" /> : sync.state === 'offline' || sync.state === 'error' ? <CloudOff size={12} /> : <Cloud size={12} />}
-            {sync.state === 'syncing' ? 'Syncing' : sync.state === 'offline' ? 'Offline' : sync.state === 'error' ? 'Sync error' : sync.pending ? `${sync.pending} pending` : 'Synced'}
+          <span className="library-tagline">
+            <Lock size={12} /> Password protected, synced across your devices
           </span>
-          <button type="button" className="btn btn-ghost btn-s" onClick={() => useStore.getState().signOut()} title="Sign out of this device">
-            <LogOut size={13} /> Sign out
+          <span className={`sync-state sync-${sync.state}`} title={sync.message ?? (sync.pending ? `${sync.pending} pending` : 'Synced')}>
+            {sync.state === 'syncing' ? <RefreshCw size={13} className="spin" /> : sync.state === 'offline' || sync.state === 'error' ? <CloudOff size={13} /> : <Cloud size={13} />}
+            <span>{sync.state === 'syncing' ? 'Syncing' : sync.state === 'offline' ? 'Offline' : sync.state === 'error' ? 'Sync error' : sync.pending ? `${sync.pending} pending` : 'Synced'}</span>
+          </span>
+          <button type="button" className="btn btn-ghost btn-s signout-btn" onClick={() => useStore.getState().signOut()} title="Sign out of this device" aria-label="Sign out">
+            <LogOut size={14} /> <span>Sign out</span>
           </button>
         </span>
       </header>
 
       <main className="library-main">
-        <section className="hero">
-          <h1>Read closely. Decide clearly.</h1>
-          <p>
-            Panelist is a workbench for grant reviewers. Drop in the application PDF, tag the strengths and weaknesses as you read, score each criterion the way your agency expects, and walk away
-            with a critique that is already written.
-          </p>
-        </section>
+        {!(isPhone && reviews.length > 0) && (
+          <section className="hero">
+            <h1>Read closely. Decide clearly.</h1>
+            <p>
+              Panelist is a workbench for grant reviewers. Drop in the application PDF, tag the strengths and weaknesses as you read, score each criterion the way your agency expects, and walk
+              away with a critique that is already written.
+            </p>
+          </section>
+        )}
 
         <section
           className={`dropzone ${dragging ? 'is-dragging' : ''}`}
@@ -104,17 +110,36 @@ export function Library() {
           }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDrop}
-          onClick={() => fileInput.current?.click()}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && fileInput.current?.click()}
+          onClick={isPhone ? undefined : () => fileInput.current?.click()}
+          role={isPhone ? undefined : 'button'}
+          tabIndex={isPhone ? undefined : 0}
+          onKeyDown={isPhone ? undefined : (e) => e.key === 'Enter' && fileInput.current?.click()}
         >
           <input ref={fileInput} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => start([...(e.target.files ?? [])])} />
-          <div className="dropzone-icon">
-            <FileUp size={26} strokeWidth={1.6} />
-          </div>
-          <div className="dropzone-title">Drop the application PDF here</div>
-          <div className="dropzone-sub">or click to browse. Add supporting documents at the same time if you have them.</div>
+          {isPhone ? (
+            <div className="dropzone-phone">
+              <div className="dropzone-icon">
+                <FileUp size={22} strokeWidth={1.6} />
+              </div>
+              <div>
+                <div className="dropzone-title">New review</div>
+                <div className="dropzone-sub">Choose a PDF from Files, or open a review from another device below.</div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="dropzone-icon">
+                <FileUp size={26} strokeWidth={1.6} />
+              </div>
+              <div className="dropzone-title">Drop the application PDF here</div>
+              <div className="dropzone-sub">or click to browse. Add supporting documents at the same time if you have them.</div>
+            </>
+          )}
+          {isPhone && (
+            <button type="button" className="btn btn-primary dropzone-add" onClick={(e) => (e.stopPropagation(), fileInput.current?.click())}>
+              <Plus size={15} /> Add a proposal PDF
+            </button>
+          )}
           <div className="dropzone-row" onClick={(e) => e.stopPropagation()}>
             <label className="field-inline">
               <span>Framework</span>
