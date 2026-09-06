@@ -145,6 +145,8 @@ interface State {
   closeFrameworkEditor(): void;
   /** After a successful login: load data and start syncing. */
   setSheet(sheet: 'nav' | 'panel' | null): void;
+  /** Tell the reviewer where a freshly opened review resumed, once per opening. */
+  announceResume(docId: string, page: number, section?: string): void;
   signedIn(): Promise<void>;
   signOut(everywhere?: boolean): Promise<void>;
   syncNow(): Promise<void>;
@@ -214,6 +216,8 @@ function applyTheme(theme: Theme) {
 }
 
 let engine: SyncEngine | null = null;
+/** Review ids whose resume position has been announced this opening. */
+const announced = new Set<string>();
 
 /** Load every review from the local database into the list, newest first. */
 async function loadReviewList(set: (partial: Partial<State>) => void): Promise<void> {
@@ -477,6 +481,7 @@ export const useStore = create<State>((set, get) => {
         return;
       }
       const activeDocId = review.docs[0]?.id ?? null;
+      for (const k of [...announced]) if (k.startsWith(`${review.id}|`)) announced.delete(k);
       set({ review, activeDocId, docs: {}, reflow: {}, figureViewer: null, page: activeDocId ? review.lastPage[activeDocId] ?? 1 : 1, tab: 'brief', selectedNoteId: null, editingNoteId: null, searchQuery: '' });
       for (const doc of review.docs) void get().ensureReflow(doc.id);
       for (const doc of review.docs) {
@@ -594,6 +599,15 @@ export const useStore = create<State>((set, get) => {
 
     setTab: (tab) => set({ tab }),
     setSheet: (sheet) => set({ sheet }),
+
+    announceResume(docId, page, section) {
+      const r = get().review;
+      if (!r || page <= 1) return;
+      const key = `${r.id}|${docId}`;
+      if (announced.has(key)) return;
+      announced.add(key);
+      get().notify(`Resumed at p. ${page}${section ? ` · ${section}` : ''}`, 'info');
+    },
     setNavTab: (navTab) => set({ navTab, navOpen: true }),
 
     setPage(page) {

@@ -108,7 +108,10 @@ export function PdfViewer() {
     restoredFor.current = doc.id;
     const last = review.lastPage[doc.id] ?? 1;
     const el = scrollRef.current;
-    if (el && last > 1 && layout[last - 1]) el.scrollTop = layout[last - 1].top - PAD;
+    if (el && last > 1 && layout[last - 1]) {
+      el.scrollTop = layout[last - 1].top - PAD;
+      useStore.getState().announceResume(doc.id, last, sectionAt(doc.outline, last, 1)?.title);
+    }
   }, [ready, doc, layout, review.lastPage]);
 
   // Handle jump requests.

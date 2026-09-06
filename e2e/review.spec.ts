@@ -252,6 +252,13 @@ test('the document scrolls and page navigation advances', async ({ page }) => {
   await expect.poll(pageNo, { timeout: 5000 }).not.toBe('2');
   await page.keyboard.press('[');
   await page.waitForTimeout(600);
+  // Leaving and reopening the review resumes where reading stopped, and says so.
+  const pageBefore = await pageNo();
+  await page.getByRole('button', { name: 'Library' }).click();
+  await page.locator('.review-card-main').first().click();
+  await expect(page.locator('.pdf-canvas').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.toast')).toContainText(`Resumed at p. ${pageBefore}`);
+  await expect.poll(pageNo).toBe(pageBefore);
   // Landscape and portrait pages both fit the container width.
   const widths = await page.locator('.page-slot').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
   expect(new Set(widths).size).toBe(1);

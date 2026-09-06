@@ -10,5 +10,6 @@ export async function login(page: Page): Promise<void> {
     await field.fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
   }
-  await expect(page.getByRole('heading', { name: /Read closely/i })).toBeVisible();
+  // The hero heading hides on phones once reviews exist; the library main is always there.
+  await expect(page.locator('.library-main')).toBeVisible();
 }

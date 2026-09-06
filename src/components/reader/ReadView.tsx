@@ -133,7 +133,10 @@ export function ReadView() {
     if (!doc || restored.current === activeDocId) return;
     restored.current = activeDocId;
     const last = review.lastPage[activeDocId] ?? 1;
-    if (last > 1) requestAnimationFrame(() => scrollToBlock(firstBlockOnPage(last)));
+    if (last > 1) {
+      requestAnimationFrame(() => scrollToBlock(firstBlockOnPage(last)));
+      useStore.getState().announceResume(activeDocId, last, nearestHeading(doc, last) || undefined);
+    }
   }, [doc, activeDocId, review.lastPage, scrollToBlock, firstBlockOnPage]);
 
   // Jumps from the outline, notes, checklist, and figure viewer.

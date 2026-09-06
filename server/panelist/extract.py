@@ -1569,6 +1569,35 @@ def _build(
             bid = f"b{len(blocks) + 1:04d}"
             if p.kind == "heading":
                 level = heading_level(p)
+                prev = blocks[-1] if blocks else None
+                # A title or heading set over several lines arrives as consecutive heading
+                # paragraphs of the same size and level. Join them unless the first line
+                # already reads as complete or the next starts a recognised section.
+                if (
+                    prev is not None
+                    and prev["type"] == "heading"
+                    and prev["level"] == level
+                    and prev["page"] == p.page
+                    and abs(prev.get("_size", p.size) - p.size) <= 0.6
+                    and not prev["text"].rstrip().endswith((".", ":", "?", "!", ";"))
+                    and len(prev["text"]) + 1 + len(text) <= MAX_HEADING_CHARS
+                    and not is_known_section(text)
+                    and not AIM_RE.match(text)
+                    and not NUMBERED_RE.match(text)
+                ):
+                    prev_runs = prev["runs"]
+                    prev_runs[-1]["t"] += " "
+                    if style_key(prev_runs[-1]) == style_key(runs[0]):
+                        prev_runs[-1]["t"] += runs[0]["t"]
+                        prev_runs.extend(runs[1:])
+                    else:
+                        prev_runs.extend(runs)
+                    prev["text"] = runs_text(prev_runs)
+                    for t in reversed(toc):
+                        if t["blockId"] == prev["id"]:
+                            t["title"] = prev["text"]
+                            break
+                    continue
                 blocks.append(
                     {
                         "id": bid,
@@ -1577,6 +1606,7 @@ def _build(
                         "page": p.page,
                         "text": text,
                         "runs": runs,
+                        "_size": p.size,
                     }
                 )
                 toc.append({"blockId": bid, "title": text, "level": level, "page": p.page})
@@ -1643,6 +1673,7 @@ def _build(
 
     for b in blocks:
         b.pop("_open", None)
+        b.pop("_size", None)
     # if nothing ranked as a top-level heading, promote the whole hierarchy
     levels = [b["level"] for b in blocks if b["type"] == "heading"]
     if levels and min(levels) > 1:
