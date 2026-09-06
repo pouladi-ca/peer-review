@@ -349,6 +349,14 @@ export function FrameworkEditor() {
                           Scale
                           <ScaleEditor value={c.scale} onChange={(s) => edit((d) => void (d.criteria[i].scale = s))} allowInherit inheritLabel="Default scale" />
                         </label>
+                        <label className="fw-check">
+                          <input type="checkbox" checked={!!c.unscored} onChange={(e) => edit((d) => void (d.criteria[i].unscored = e.target.checked || undefined))} />
+                          Comments only, no score
+                        </label>
+                        <label>
+                          Character limit
+                          <input type="number" min={0} step={100} value={c.maxChars ?? ''} placeholder="None" onChange={(e) => edit((d) => void (d.criteria[i].maxChars = e.target.value ? Math.max(0, Number(e.target.value)) || undefined : undefined))} aria-label="Character limit" />
+                        </label>
                       </div>
                       <label>
                         What it asks

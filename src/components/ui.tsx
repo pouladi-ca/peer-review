@@ -152,3 +152,17 @@ export function DictateButton({ onText, compact }: { onText: (text: string) => v
     </span>
   );
 }
+
+/** "1,234 / 2,000" for a box with a funder-imposed character limit; warns near the limit and flags overruns. */
+export function CharCount({ value, max, className = '' }: { value: string; max?: number; className?: string }) {
+  if (!max) return null;
+  const n = value.length;
+  const over = n - max;
+  const state = over > 0 ? 'is-over' : n >= max * 0.9 ? 'is-near' : '';
+  return (
+    <span className={`charcount ${state} ${className}`} aria-live="polite" title={over > 0 ? `${over.toLocaleString()} over the limit` : `${(max - n).toLocaleString()} characters remaining`}>
+      {n.toLocaleString()} / {max.toLocaleString()}
+      {over > 0 && <span className="charcount-over"> · {over.toLocaleString()} over</span>}
+    </span>
+  );
+}

@@ -34,7 +34,7 @@ export function Scorecard() {
               {row.scored && numeric ? String(row.scoreValue) : ''}
             </span>
             <span className="sc-name">{row.short}</span>
-            <span className="sc-score">{row.scored ? row.scoreText.replace(/^[\d.]+\s*/, '') || 'Rated' : <em>Not scored</em>}</span>
+            <span className="sc-score">{row.scored ? row.scoreText.replace(/^[\d.]+\s*/, '') || 'Rated' : <em>{row.unscored ? 'No comments yet' : 'Not scored'}</em>}</span>
             <span className="sc-dots">
               <Dots row={row} />
             </span>
@@ -77,7 +77,7 @@ export function SubmitCheck() {
         <CheckCircle2 size={18} />
         <div>
           <strong>This review is complete.</strong>
-          <p>Every criterion is scored with a rationale, and nothing is left open. Export it below.</p>
+          <p>Every criterion is addressed, every box is within its limit, and nothing is left open. Export it below.</p>
         </div>
       </div>
     );

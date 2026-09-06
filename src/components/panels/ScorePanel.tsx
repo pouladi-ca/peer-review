@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { useFramework } from '../../hooks/useFramework';
 import { ChevronDown, Target, AlertTriangle, MapPin } from 'lucide-react';
 import { useStore } from '../../lib/store';
-import { criterionScale, scoreLabel, type Criterion, type ScaleDef } from '../../lib/frameworks';
+import { criterionScale, fieldSpec, recommendationSpec, scoreLabel, type Criterion, type ScaleDef } from '../../lib/frameworks';
 import type { Annotation } from '../../lib/types';
-import { AutoTextarea, DictateButton, KindIcon, KIND_ORDER } from '../ui';
+import { AutoTextarea, CharCount, DictateButton, KindIcon, KIND_ORDER } from '../ui';
 import { clip } from '../../lib/format';
 
 export function ScorePanel() {
@@ -13,6 +13,7 @@ export function ScorePanel() {
   const core = fw.criteria.filter((c) => c.group === 'core');
   const additional = fw.criteria.filter((c) => c.group === 'additional');
   const [showAdditional, setShowAdditional] = useState(false);
+  const commentsOnly = core.length > 0 && core.every((c) => c.unscored);
 
   const consistency = useMemo(() => {
     if (fw.overall.scale.kind !== 'numeric' || fw.criterionScale.kind !== 'numeric') return null;
@@ -34,7 +35,7 @@ export function ScorePanel() {
   return (
     <div className="score">
       <p className="panel-intro">
-        Score each criterion, then write the rationale that your bullets support. Use <Target size={12} className="inline-icon" /> to focus a criterion so new notes attach to it.
+        {commentsOnly ? `${fw.agency} asks for comments on each criterion, not scores. Write them here, and your tagged bullets follow each one in the draft.` : 'Score each criterion, then write the rationale that your bullets support.'} Use <Target size={12} className="inline-icon" /> to focus a criterion so new notes attach to it.
       </p>
       {core.map((c) => (
         <CriterionCard key={c.id} criterion={c} />
@@ -205,15 +206,22 @@ function CriterionCard({ criterion: c, compact }: { criterion: Criterion; compac
           )}
         </div>
       )}
-      <ScoreControl scale={scale} value={score?.score} onChange={(v) => set({ score: v })} name={c.name} />
+      {!c.unscored && <ScoreControl scale={scale} value={score?.score} onChange={(v) => set({ score: v })} name={c.name} />}
       <AutoTextarea
         minRows={compact ? 1 : 3}
         value={score?.comment ?? ''}
-        placeholder={compact ? 'Comment (optional)' : 'Rationale for this score. The tagged strengths and weaknesses below will follow it in the draft.'}
+        placeholder={compact ? 'Comment (optional)' : c.unscored ? `Your comments on ${c.name.toLowerCase()}. The tagged strengths and weaknesses below will follow them in the draft.` : 'Rationale for this score. The tagged strengths and weaknesses below will follow it in the draft.'}
         onChange={(e) => set({ comment: e.target.value })}
-        aria-label={`${c.name} rationale`}
+        aria-label={c.unscored ? `${c.name} comments` : `${c.name} rationale`}
       />
-      {!compact && <DictateButton onText={(t) => set({ comment: score?.comment ? `${score.comment.replace(/\s+$/, '')} ${t}` : t.charAt(0).toUpperCase() + t.slice(1) })} />}
+      {!compact && (
+        <div className="ta-foot">
+          <DictateButton onText={(t) => set({ comment: score?.comment ? `${score.comment.replace(/\s+$/, '')} ${t}` : t.charAt(0).toUpperCase() + t.slice(1) })} />
+          {c.maxChars && (
+            <CharCount value={score?.comment ?? ''} max={c.maxChars} />
+          )}
+        </div>
+      )}
       {!compact && <LinkedNotes notes={notes} />}
       {compact && notes.length > 0 && <LinkedNotes notes={notes} />}
     </section>
@@ -224,6 +232,8 @@ function OverallCard({ consistency }: { consistency: string | null }) {
   const review = useStore((s) => s.review)!;
   const update = useStore((s) => s.update);
   const fw = useFramework(review.frameworkId);
+  const commentSpec = fieldSpec(fw, 'overallComment');
+  const recSpec = recommendationSpec(fw);
   return (
     <section className="card overall">
       <div className="card-title">{fw.overall.label}</div>
@@ -243,8 +253,14 @@ function OverallCard({ consistency }: { consistency: string | null }) {
           <AlertTriangle size={14} /> {consistency}
         </div>
       )}
+      {fw.recommendations && fw.form?.recommendation && (
+        <div className="card-sub">
+          <div className="card-title">{recSpec.label}</div>
+          {recSpec.hint && <p className="card-hint">{recSpec.hint}</p>}
+        </div>
+      )}
       {fw.recommendations && (
-        <div className="score-cat" role="radiogroup" aria-label="Recommendation">
+        <div className="score-cat" role="radiogroup" aria-label={recSpec.label}>
           {fw.recommendations.map((r) => (
             <button
               key={r}
@@ -263,24 +279,33 @@ function OverallCard({ consistency }: { consistency: string | null }) {
           ))}
         </div>
       )}
+      {fw.form?.overallComment && (
+        <div className="card-sub">
+          <div className="card-title">{commentSpec.label}</div>
+          {commentSpec.hint && <p className="card-hint">{commentSpec.hint}</p>}
+        </div>
+      )}
       <AutoTextarea
         minRows={4}
         value={review.overall.comment}
-        placeholder="Overall assessment: the two or three things that drove your rating, and how the weaknesses weigh against the strengths."
+        placeholder={fw.form?.overallComment ? `${commentSpec.label}: what drove your score, and what you liked or disliked.` : 'Overall assessment: the two or three things that drove your rating, and how the weaknesses weigh against the strengths.'}
         onChange={(e) =>
           update((r) => {
             r.overall.comment = e.target.value;
           })
         }
-        aria-label="Overall rationale"
+        aria-label={commentSpec.label}
       />
-      <DictateButton
-        onText={(t) =>
-          update((r) => {
-            r.overall.comment = r.overall.comment ? `${r.overall.comment.replace(/\s+$/, '')} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
-          })
-        }
-      />
+      <div className="ta-foot">
+        <DictateButton
+          onText={(t) =>
+            update((r) => {
+              r.overall.comment = r.overall.comment ? `${r.overall.comment.replace(/\s+$/, '')} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
+            })
+          }
+        />
+        <CharCount value={review.overall.comment} max={commentSpec.maxChars} />
+      </div>
     </section>
   );
 }

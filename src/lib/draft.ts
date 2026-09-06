@@ -1,4 +1,4 @@
-import { criterionScale, scoreLabel, type Criterion, type Framework } from './frameworks';
+import { criterionScale, fieldSpec, recommendationSpec, scoreLabel, type Criterion, type Framework } from './frameworks';
 import type { Annotation, DocMeta, Review } from './types';
 
 export interface DraftBullet {
@@ -20,6 +20,8 @@ export interface DraftSection {
   questions: DraftBullet[];
   notes: DraftBullet[];
   empty: boolean;
+  /** The funder's character limit for this box, if any. */
+  maxChars?: number;
 }
 
 export interface Draft {
@@ -29,10 +31,14 @@ export interface Draft {
   summary: string;
   sections: DraftSection[];
   additional: { heading: string; line: string }[];
-  overall: { heading: string; scoreLine: string; body: string; recommendation?: string };
+  overall: { heading: string; scoreLine: string; body: string; bodyLabel: string; recommendation?: string; recommendationLabel: string };
   questions: DraftBullet[];
   additionalComments: string;
   confidential: string;
+  /** Headings of the free-text boxes, as the funder names them. */
+  labels: { summary: string; additional: string };
+  /** Character limits of the free-text boxes, when the funder sets them. */
+  limits: { summary?: number; additional?: number; overallComment?: number };
   stats: { strengths: number; weaknesses: number; questions: number; notes: number; major: number };
 }
 
@@ -99,8 +105,9 @@ export function composeDraft(review: Review, fw: Framework): Draft {
     return {
       id,
       heading,
-      scoreLine: label ? `${scale?.kind === 'numeric' ? 'Score' : 'Rating'}: ${label}` : undefined,
+      scoreLine: label && !c?.unscored ? `${scale?.kind === 'numeric' ? 'Score' : 'Rating'}: ${label}` : undefined,
       body,
+      maxChars: c?.maxChars,
       strengths: strengths.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
       weaknesses: weaknesses.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
       questions: questions.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
@@ -126,6 +133,9 @@ export function composeDraft(review: Review, fw: Framework): Draft {
     .filter((x) => x.line);
 
   const overallLabel = scoreLabel(fw.overall.scale, review.overall.score);
+  const summarySpec = fieldSpec(fw, 'summary');
+  const additionalSpec = fieldSpec(fw, 'additional');
+  const overallSpec = fieldSpec(fw, 'overallComment');
   const all = review.annotations;
   const questions = sortNotes(all.filter((a) => a.kind === 'question')).map((a) => {
     const b = toBullet(a, docs, multiDoc);
@@ -143,11 +153,15 @@ export function composeDraft(review: Review, fw: Framework): Draft {
       heading: fw.overall.label,
       scoreLine: overallLabel ? `${fw.overall.scale.kind === 'numeric' ? 'Score' : 'Rating'}: ${overallLabel}` : '',
       body: review.overall.comment.trim(),
+      bodyLabel: overallSpec.label,
       recommendation: review.overall.recommendation,
+      recommendationLabel: recommendationSpec(fw).label,
     },
     questions,
     additionalComments: review.draft.additional.trim(),
     confidential: review.draft.confidential.trim(),
+    labels: { summary: summarySpec.label, additional: additionalSpec.label },
+    limits: { summary: summarySpec.maxChars, additional: additionalSpec.maxChars, overallComment: overallSpec.maxChars },
     stats: {
       strengths: all.filter((a) => a.kind === 'strength').length,
       weaknesses: all.filter((a) => a.kind === 'weakness').length,
@@ -162,7 +176,7 @@ export function draftToMarkdown(d: Draft, opts: { includeConfidential?: boolean 
   const out: string[] = [];
   out.push(`# Review: ${d.title}`);
   out.push(`*${d.frameworkName}. Drafted ${new Date(d.generatedAt).toLocaleDateString()}.*`, '');
-  out.push('## Summary of the application', '', d.summary, '');
+  out.push(`## ${d.labels.summary}`, '', d.summary, '');
   for (const s of d.sections) {
     if (s.empty) continue;
     out.push(`## ${s.heading}`);
@@ -186,9 +200,9 @@ export function draftToMarkdown(d: Draft, opts: { includeConfidential?: boolean 
   }
   out.push(`## ${d.overall.heading}`);
   if (d.overall.scoreLine) out.push(`**${d.overall.scoreLine}**`, '');
-  if (d.overall.recommendation) out.push(`**Recommendation:** ${d.overall.recommendation}`, '');
+  if (d.overall.recommendation) out.push(`**${d.overall.recommendationLabel}** ${d.overall.recommendation}`, '');
   if (d.overall.body) out.push(d.overall.body, '');
-  if (d.additionalComments) out.push('## Additional comments', '', d.additionalComments, '');
+  if (d.additionalComments) out.push(`## ${d.labels.additional}`, '', d.additionalComments, '');
   if (opts.includeConfidential && d.confidential) out.push('## Confidential comments to the program', '', d.confidential, '');
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
@@ -199,4 +213,22 @@ export function draftToPlainText(d: Draft, opts: { includeConfidential?: boolean
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/^\*(.+?)\*$/gm, '$1')
     .replace(/^- /gm, '• ');
+}
+
+/**
+ * One criterion's box as plain text, ready to paste into the funder's form:
+ * the rationale followed by the tagged strengths, weaknesses, and questions.
+ */
+export function sectionPlainText(s: DraftSection): string {
+  const out: string[] = [];
+  if (s.body) out.push(s.body);
+  const block = (title: string, list: DraftBullet[]) => {
+    if (!list.length) return;
+    out.push([title, ...list.map((b) => `• ${b.text}`)].join('\n'));
+  };
+  block('Strengths', s.strengths);
+  block('Weaknesses', s.weaknesses);
+  block('Questions for the applicants', s.questions);
+  block('Other comments', s.notes);
+  return out.join('\n\n').trim();
 }

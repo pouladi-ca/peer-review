@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FRAMEWORKS, allFrameworks, customToFramework, detectFramework, frameworkToCustomDef, getFramework, setCustomFrameworks, scoreLabel, type CustomFrameworkDef } from './frameworks';
+import { FRAMEWORKS, allFrameworks, customToFramework, detectFramework, fieldSpec, frameworkToCustomDef, getFramework, recommendationSpec, setCustomFrameworks, scoreLabel, type CustomFrameworkDef } from './frameworks';
 
 describe('built-in frameworks', () => {
   it('ships fourteen frameworks with core criteria, scales, and checklists', () => {
@@ -31,10 +31,37 @@ describe('built-in frameworks', () => {
 
   it('HDSA and HDF frameworks carry their published criteria', () => {
     const hdsa = getFramework('hdsa');
-    expect(hdsa.criteria.filter((c) => c.group === 'core').map((c) => c.short)).toEqual(['Impact', 'Approach', 'Feasibility', 'Investigator', 'Collaboration']);
+    expect(hdsa.criteria.filter((c) => c.group === 'core').map((c) => c.name)).toEqual(['Impact', 'Scientific Approach', 'Feasibility', 'Strength of Candidate and Mentor lab', 'Clinical Collaboration']);
     const hdf = getFramework('hdf');
     expect(hdf.criteria.map((c) => c.name)).toEqual(['Relevance', 'Novelty', 'Significance', 'Scientific Premise', 'Approach', 'Applicant', 'Environment', 'Budget', 'NIH Guidelines']);
     expect(hdsa.checklist.some((c) => c.id === 'coe')).toBe(true);
+  });
+
+  it('HDSA mirrors its ProposalCentral score sheet: comment-only criteria, 2,000-character boxes, one 1 to 9 score', () => {
+    const hdsa = getFramework('hdsa');
+    const core = hdsa.criteria.filter((c) => c.group === 'core');
+    expect(core.every((c) => c.unscored && c.maxChars === 2000)).toBe(true);
+    expect(hdsa.overall.scale).toMatchObject({ kind: 'numeric', min: 1, max: 9, bestIsLow: true });
+    expect(scoreLabel(hdsa.overall.scale, 1)).toBe('1 Outstanding');
+    expect(scoreLabel(hdsa.overall.scale, 4)).toContain('fundable');
+    expect(scoreLabel(hdsa.overall.scale, 9)).toBe('9 Poor');
+    expect(fieldSpec(hdsa, 'summary')).toMatchObject({ label: 'Comments: Summary', maxChars: 2000, required: true });
+    expect(fieldSpec(hdsa, 'additional')).toMatchObject({ label: 'Comments: Other', maxChars: 2000 });
+    expect(fieldSpec(hdsa, 'overallComment')).toMatchObject({ label: 'Feedback for the applicant', maxChars: 15000 });
+    expect(recommendationSpec(hdsa)).toMatchObject({ label: 'Worthy of discussion?', required: true });
+    expect(hdsa.recommendations?.[0]).toMatch(/^Yes/);
+    // Frameworks without a form keep the plain defaults.
+    expect(fieldSpec(getFramework('nih-2025'), 'summary')).toEqual({ label: 'Summary of the application' });
+    expect(recommendationSpec(getFramework('nih-2025')).label).toBe('Recommendation');
+  });
+
+  it('keeps comment-only criteria and limits when a built-in framework is duplicated', () => {
+    const def = frameworkToCustomDef(getFramework('hdsa'), 'custom-x');
+    expect(def.criteria[0]).toMatchObject({ unscored: true, maxChars: 2000 });
+    expect(def.form?.summary?.maxChars).toBe(2000);
+    const fw = customToFramework(def);
+    expect(fw.criteria[0].unscored).toBe(true);
+    expect(fieldSpec(fw, 'overallComment').maxChars).toBe(15000);
   });
 
   it('labels Horizon Europe half-point scores by band', () => {

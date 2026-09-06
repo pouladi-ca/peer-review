@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react';
 import { useFramework } from '../../hooks/useFramework';
 import { Copy, Download, FileText, Printer, Archive, Wand2, Eye, EyeOff } from 'lucide-react';
 import { useStore } from '../../lib/store';
-import { autoSummary, composeDraft, draftToMarkdown, draftToPlainText, type DraftBullet } from '../../lib/draft';
+import { autoSummary, composeDraft, draftToMarkdown, draftToPlainText, sectionPlainText, type DraftBullet } from '../../lib/draft';
+import { fieldSpec } from '../../lib/frameworks';
 import { copyText, downloadBlob, downloadText, safeFilename } from '../../lib/export/download';
 import { draftToDocx } from '../../lib/export/docx';
 import { createBackup } from '../../lib/export/backup';
-import { AutoTextarea } from '../ui';
+import { AutoTextarea, CharCount } from '../ui';
 import { SubmitCheck } from '../Scorecard';
 
 export function DraftPanel() {
@@ -18,6 +19,8 @@ export function DraftPanel() {
   const [showPreview, setShowPreview] = useState(true);
   const draft = useMemo(() => composeDraft(review, fw), [review, fw]);
   const base = safeFilename(review.title);
+  const summarySpec = fieldSpec(fw, 'summary');
+  const additionalSpec = fieldSpec(fw, 'additional');
 
   const doCopy = async (plain: boolean) => {
     const ok = await copyText(plain ? draftToPlainText(draft, { includeConfidential }) : draftToMarkdown(draft, { includeConfidential }));
@@ -52,7 +55,7 @@ export function DraftPanel() {
 
       <section className="card">
         <div className="card-title">
-          Summary of the application
+          {summarySpec.label}
           <button
             type="button"
             className="link"
@@ -66,6 +69,7 @@ export function DraftPanel() {
             <Wand2 size={12} /> Prefill
           </button>
         </div>
+        {summarySpec.hint && <p className="card-hint">{summarySpec.hint}</p>}
         <AutoTextarea
           minRows={4}
           value={review.draft.summary}
@@ -75,23 +79,25 @@ export function DraftPanel() {
               r.draft.summary = e.target.value;
             })
           }
-          aria-label="Summary of the application"
+          aria-label={summarySpec.label}
         />
+        <CharCount value={review.draft.summary} max={summarySpec.maxChars} className="ta-count" />
       </section>
 
       <section className="card">
-        <div className="card-title">Additional comments</div>
+        <div className="card-title">{additionalSpec.label}</div>
         <AutoTextarea
           minRows={2}
           value={review.draft.additional}
-          placeholder="Anything that does not belong under a criterion: presentation, scope, resubmission advice."
+          placeholder={additionalSpec.hint ?? 'Anything that does not belong under a criterion: presentation, scope, resubmission advice.'}
           onChange={(e) =>
             update((r) => {
               r.draft.additional = e.target.value;
             })
           }
-          aria-label="Additional comments"
+          aria-label={additionalSpec.label}
         />
+        <CharCount value={review.draft.additional} max={additionalSpec.maxChars} className="ta-count" />
       </section>
 
       <section className="card">
@@ -175,23 +181,46 @@ function Bullets({ title, list }: { title: string; list: DraftBullet[] }) {
   );
 }
 
+/** A preview heading with the box's character count against the funder's limit and a copy button for pasting into the form. */
+function BoxHead({ title, text, max }: { title: string; text: string; max?: number }) {
+  const notify = useStore((s) => s.notify);
+  const copy = async () => {
+    const ok = await copyText(text);
+    notify(ok ? `Copied “${title}”.` : 'Copy failed.', ok ? 'success' : 'error');
+  };
+  return (
+    <div className="pv-head">
+      <h2>{title}</h2>
+      <span className="pv-tools">
+        <CharCount value={text} max={max} />
+        {text && (
+          <button type="button" className="link" onClick={copy} title={`Copy this box as plain text`} aria-label={`Copy ${title}`}>
+            <Copy size={12} /> Copy
+          </button>
+        )}
+      </span>
+    </div>
+  );
+}
+
 export function DraftPreview({ includeConfidential }: { includeConfidential: boolean }) {
   const review = useStore((s) => s.review)!;
   const fw = useFramework(review.frameworkId);
   const d = useMemo(() => composeDraft(review, fw), [review, fw]);
+  const overallText = [d.overall.scoreLine, d.overall.recommendation ? `${d.overall.recommendationLabel} ${d.overall.recommendation}` : ''].filter(Boolean).join('\n');
   return (
     <article className="preview" id="print-root">
       <h1>Review: {d.title}</h1>
       <p className="pv-meta">
         {d.frameworkName}. Drafted {new Date(d.generatedAt).toLocaleDateString()}.
       </p>
-      <h2>Summary of the application</h2>
+      <BoxHead title={d.labels.summary} text={d.summary} max={d.limits.summary} />
       <p>{d.summary}</p>
       {d.sections
         .filter((s) => !s.empty)
         .map((s) => (
           <section key={s.id}>
-            <h2>{s.heading}</h2>
+            <BoxHead title={s.heading} text={sectionPlainText(s)} max={s.maxChars} />
             {s.scoreLine && <p className="pv-score">{s.scoreLine}</p>}
             {s.body && <p className="pv-body">{s.body}</p>}
             <Bullets title="Strengths" list={s.strengths} />
@@ -213,18 +242,19 @@ export function DraftPreview({ includeConfidential }: { includeConfidential: boo
         </section>
       )}
       <section>
-        <h2>{d.overall.heading}</h2>
+        <BoxHead title={d.overall.heading} text={overallText} />
         {d.overall.scoreLine && <p className="pv-score">{d.overall.scoreLine}</p>}
         {d.overall.recommendation && (
           <p className="pv-score">
-            Recommendation: {d.overall.recommendation}
+            {d.overall.recommendationLabel} {d.overall.recommendation}
           </p>
         )}
-        {d.overall.body ? <p className="pv-body">{d.overall.body}</p> : <p className="pv-missing">No overall rationale yet.</p>}
+        {fw.form?.overallComment && <BoxHead title={d.overall.bodyLabel} text={d.overall.body} max={d.limits.overallComment} />}
+        {d.overall.body ? <p className="pv-body">{d.overall.body}</p> : <p className="pv-missing">No {d.overall.bodyLabel.toLowerCase()} yet.</p>}
       </section>
       {d.additionalComments && (
         <section>
-          <h2>Additional comments</h2>
+          <BoxHead title={d.labels.additional} text={d.additionalComments} max={d.limits.additional} />
           <p className="pv-body">{d.additionalComments}</p>
         </section>
       )}

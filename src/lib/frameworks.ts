@@ -35,6 +35,10 @@ export interface Criterion {
   bulleted?: boolean;
   /** Keyword hints used to map document sections and notes to this criterion. */
   keywords?: string[];
+  /** True when the funder asks for comments only, with no rating for this criterion. */
+  unscored?: boolean;
+  /** The funder's character limit for this criterion's comment box, if any. */
+  maxChars?: number;
 }
 
 export type ChecklistCategory = 'science' | 'rigor' | 'feasibility' | 'compliance' | 'reviewer';
@@ -46,6 +50,26 @@ export interface ChecklistItemDef {
   category: ChecklistCategory;
   /** Patterns that suggest the application addresses this item. */
   patterns?: RegExp[];
+}
+
+/** A free-text box on the funder's score sheet: its label, guidance, character limit, and whether it must be filled. */
+export interface FieldSpec {
+  label?: string;
+  hint?: string;
+  maxChars?: number;
+  required?: boolean;
+}
+
+/** How the funder's score sheet labels and limits the free-text parts of a review. */
+export interface FormSpec {
+  /** The summary box (the review's draft summary). */
+  summary?: FieldSpec;
+  /** The catch-all comments box (the review's additional comments). */
+  additional?: FieldSpec;
+  /** The overall written assessment (the overall rationale). */
+  overallComment?: FieldSpec;
+  /** How the recommendation choice is labelled, and whether it must be answered. */
+  recommendation?: { label: string; hint?: string; required?: boolean };
 }
 
 export interface Framework {
@@ -61,6 +85,8 @@ export interface Framework {
   guidance: string[];
   /** Section headings expected in the application for this agency. */
   expectedSections: string[];
+  /** Labels and limits of the funder's free-text boxes, when they differ from the defaults. */
+  form?: FormSpec;
   /** True for reviewer-defined frameworks stored in the browser. */
   custom?: boolean;
 }
@@ -994,77 +1020,123 @@ const DFG: Framework = {
 
 /* ---------- HDSA (Human Biology Project / Human Experience Project) ---------- */
 
+/** HDSA's ProposalCentral score: 1 is best; 1 to 4 has historically been fundable. */
+const HDSA_SCALE: ScaleDef = {
+  kind: 'numeric',
+  min: 1,
+  max: 9,
+  bestIsLow: true,
+  labels: {
+    1: 'Outstanding',
+    2: 'Historically fundable',
+    3: 'Historically fundable',
+    4: 'Historically fundable',
+    5: 'Historically not funded',
+    6: 'Historically not funded',
+    7: 'Historically not funded',
+    8: 'Historically not funded',
+    9: 'Poor',
+  },
+  hint: '1 is outstanding, 9 is poor. Applications scoring 1 to 4 have historically been considered fundable by the SAB.',
+};
+
 const HDSA: Framework = {
   id: 'hdsa',
   name: 'HDSA Human Biology / Human Experience Project',
   agency: 'HDSA',
   blurb:
-    'Five criteria scored by the HDSA Scientific Advisory Board: impact and relevance, scientific approach, feasibility, investigator and environment, and clinical collaboration (with patient engagement for the Human Experience stream). The RFP does not publish the numeric scale; the 1 to 5 default here can be changed to match your ProposalCentral score sheet.',
-  criterionScale: FIVE_POINT,
+    'Mirrors the ProposalCentral score sheet: a summary, comments on five criteria in order of importance (impact, scientific approach, feasibility, strength of candidate and mentor lab, clinical collaboration), other comments, whether the application merits discussion by the full SAB, feedback for the applicant, and one overall score from 1 (outstanding) to 9 (poor). Criteria are not scored individually; each comment box holds 2,000 characters.',
+  criterionScale: HDSA_SCALE,
+  form: {
+    summary: {
+      label: 'Comments: Summary',
+      hint: 'Summarize the grant and offer your comments on its eligibility for funding. The major criteria, in order of importance, are impact, scientific approach, feasibility, strength of candidate and mentor lab, and clinical collaboration. You may wish to complete the criterion boxes first and summarize last.',
+      maxChars: 2000,
+      required: true,
+    },
+    additional: {
+      label: 'Comments: Other',
+      hint: 'Other comments, questions, considerations, or concerns.',
+      maxChars: 2000,
+      required: true,
+    },
+    overallComment: {
+      label: 'Feedback for the applicant',
+      hint: 'Specific comments or feedback for the applicant. These need not be extensive, but points on how you weighed the scoring criteria and what you liked or disliked let HDSA give applicants useful feedback. If you are comfortable with the applicant seeing the full extent of your comments, you may paste them in full.',
+      maxChars: 15000,
+      required: true,
+    },
+    recommendation: {
+      label: 'Worthy of discussion?',
+      hint: 'Should this application be discussed amongst the full SAB during the review meeting?',
+      required: true,
+    },
+  },
   criteria: [
     {
-      id: 'impact', name: 'Impact and Relevance', short: 'Impact', group: 'core', bulleted: true,
-      keywords: ['significance', 'impact', 'relevance', 'background', 'rationale', 'statement of need', 'gap'],
-      description: 'Human Biology: does the research address an important problem in HD biology and offer potential to advance understanding or enable treatment? Human Experience: does it address a meaningful gap in the lived experience of HD, with practical implications for people with HD, their families, or their care?',
+      id: 'impact', name: 'Impact', short: 'Impact', group: 'core', bulleted: true, unscored: true, maxChars: 2000,
+      keywords: ['significance', 'impact', 'relevance', 'background', 'rationale', 'statement of need', 'gap', 'biomarker'],
+      description: 'Does the proposal help us better understand HD human biology or address a critical issue within the HD research community? For example, does it emphasize biomarkers, mechanistic insights, or endpoints that will support therapy development?',
       prompts: [
         'Does the project address an important problem in HD biology, or a meaningful gap in the lived experience of HD?',
         'Will the findings inform therapeutic development, clinical trial design, regulatory arguments, or patient care?',
-        'Human Biology: does it use HD patient-derived samples or data (biofluids, CSF, PBMCs, postmortem tissue) rather than only cell lines or animal material?',
-        'Human Biology: does it develop or validate clinically meaningful biomarkers or endpoints, including treatment response and progression across HD-ISS stages?',
+        'Does it develop or validate clinically meaningful biomarkers or endpoints, including treatment response and progression across HD-ISS stages?',
+        'Does it offer mechanistic insight grounded in human biology rather than only in models?',
         'Human Experience: will findings improve cognition, function, quality of life, or care across disease stages?',
         'Does it address HDSA priorities: supporting people as disease-modifying therapies emerge, patient-centered outcome measures, or equity of access for rural and underserved communities?',
       ],
     },
     {
-      id: 'approach', name: 'Scientific Approach', short: 'Approach', group: 'core', bulleted: true,
-      keywords: ['approach', 'methods', 'design', 'analysis', 'outcome measures', 'statistic', 'aims', 'research plan'],
-      description: 'Are the design, methods, and analyses (or outcome measures) well developed, rigorous, appropriate to the aims, and, for the Human Experience stream, patient-centered?',
+      id: 'approach', name: 'Scientific Approach', short: 'Approach', group: 'core', bulleted: true, unscored: true, maxChars: 2000,
+      keywords: ['approach', 'methods', 'design', 'analysis', 'outcome measures', 'statistic', 'aims', 'research plan', 'iPSC', 'samples'],
+      description: 'Are the methods and technologies appropriate to address the question? Does the proposal use clinical samples or patient data to advance understanding of HD biology in humans? iPSC-based studies must be clearly linked to human clinical relevance and framed in the context of findings from patient samples.',
       prompts: [
         'Are the design, methods, and analyses rigorous and appropriate to the aims?',
+        'Does the work use HD patient-derived samples or data (biofluids, CSF, PBMCs, postmortem tissue) rather than only cell lines or animal material?',
+        'If iPSC-based: is it explicitly tied to human clinical relevance and to findings from patient samples?',
+        'Is the study population well defined, with sufficient statistical power or a justified pilot design and a credible plan to scale up?',
         'Human Experience: are the outcome measures patient-centered and relevant to clinical trials or regulatory submissions?',
-        'For survey-based or lifestyle studies: is there a well-defined population and sufficient statistical power, or a justified pilot design with a clear, feasible plan for scale-up?',
-        'For pilot-scale experimental medicine studies: does the design establish feasibility and generate hypotheses even with limited power?',
         'Are potential pitfalls and alternative strategies addressed?',
       ],
     },
     {
-      id: 'feasibility', name: 'Feasibility', short: 'Feasibility', group: 'core', bulleted: true,
+      id: 'feasibility', name: 'Feasibility', short: 'Feasibility', group: 'core', bulleted: true, unscored: true, maxChars: 2000,
       keywords: ['timeline', 'feasibility', 'milestones', 'recruitment', 'preliminary', 'resources'],
-      description: 'Can the project be completed within the timeline (one or two years) and with the available resources, including participant recruitment or sample procurement?',
+      description: 'Can the project be completed within the timeline and with the available resources?',
       prompts: [
         'Is the timeline realistic for a one- or two-year award?',
+        'Is access to samples and data assured, with documentation where postmortem tissue is used?',
         'Human Experience: is participant recruitment credible, including through HD Trialfinder and the COE network?',
-        'Human Biology: is access to samples and data assured, with documentation where postmortem tissue is used?',
         'Do preliminary data or prior experience support feasibility?',
         'Are IRB or equivalent approvals planned so funds can be disbursed on time?',
       ],
     },
     {
-      id: 'investigator', name: 'Investigator and Environment', short: 'Investigator', group: 'core', bulleted: true,
-      keywords: ['investigator', 'applicant', 'team', 'expertise', 'environment', 'institution', 'biosketch', 'mentor'],
-      description: 'Is the applicant well suited to carry out the work, does the team have the relevant expertise, and is the institutional environment appropriate for this type of research?',
+      id: 'investigator', name: 'Strength of Candidate and Mentor lab', short: 'Candidate & mentor', group: 'core', bulleted: true, unscored: true, maxChars: 2000,
+      keywords: ['investigator', 'applicant', 'candidate', 'mentor', 'team', 'expertise', 'environment', 'institution', 'biosketch', 'training'],
+      description: 'Do the applicant and mentor have the relationship, skills, and resources to successfully carry out the project? Is it a supportive environment for working on HD?',
       prompts: [
-        'Does the applicant, or the team, have the expertise the aims require, including clinical, behavioral, or patient-centered research expertise where relevant?',
-        'For mentored applications: is there a letter from a qualified mentor with a primary academic or research appointment?',
+        'Does the applicant have the training and track record the aims require?',
+        'Is the mentor qualified, with a primary academic or research appointment, and is the mentoring relationship established and specific to this project?',
+        'Does the mentor lab bring the expertise, samples, cohorts, or technologies the project depends on?',
+        'Is the environment supportive of HD research, with the facilities and clinical connections the project needs?',
         'Is the applicant committing at least 50% effort?',
-        'Does the environment provide the facilities and support the project needs?',
-        'Would the award bring a new investigator into the HD field through collaborative, mentored research?',
+        'Would the award bring a new investigator into HD research or strengthen an early career in it?',
       ],
     },
     {
-      id: 'collaboration', name: 'Clinical Collaboration and Patient Engagement', short: 'Collaboration', group: 'core', bulleted: true,
-      keywords: ['collaboration', 'center of excellence', 'coe', 'clinic', 'clinical site', 'participants', 'engagement', 'lived experience', 'letter'],
-      description: 'Is there a strong, genuine relationship with an HDSA Center of Excellence or equivalent HD clinical site? Will sample procurement and data access be supported and feasible? For the Human Experience stream, are people with lived experience engaged in meaningful ways?',
+      id: 'collaboration', name: 'Clinical Collaboration', short: 'Collaboration', group: 'core', bulleted: true, unscored: true, maxChars: 2000,
+      keywords: ['collaboration', 'center of excellence', 'clinical site', 'clinic', 'letter', 'partner', 'patient engagement', 'lived experience'],
+      description: 'HDSA requires a meaningful collaboration with an HDSA Center of Excellence or HD clinical site, which goes beyond data access or a letter of support. It should involve active engagement from the clinical partner in the design, conduct, or interpretation of the research.',
       prompts: [
-        'Is the COE or clinical partnership substantive rather than nominal, with a letter or evidence of an established relationship?',
-        'Will the clinic support sample procurement, data access, or participant recruitment?',
-        'Does the project complement or extend existing HD datasets, biorepositories, or COE infrastructure?',
-        'Human Experience: are people with lived experience engaged in the design or conduct of the research?',
-        'For purely in silico or data-only projects: is there active consultation with COE clinical experts?',
+        'Is there a named HDSA Center of Excellence or HD clinical site, and is the collaboration described concretely?',
+        'Does the clinical partner take an active part in design, conduct, or interpretation, rather than only supplying samples, data, or a letter?',
+        'Are sample procurement and data access supported by the partner and feasible?',
+        'Human Experience: are people with lived experience engaged in meaningful ways?',
       ],
     },
     {
-      id: 'stream', name: 'Program Fit', short: 'Program fit', group: 'additional',
+      id: 'fit', name: 'Program Fit', short: 'Program fit', group: 'additional',
       keywords: ['human biology', 'human experience', 'stream', 'program'],
       scale: {
         kind: 'categorical',
@@ -1094,10 +1166,10 @@ const HDSA: Framework = {
   ],
   overall: {
     label: 'Overall score',
-    description: 'Your overall assessment for the Scientific Advisory Board. Check the score sheet in ProposalCentral for the scale used in this cycle.',
-    scale: FIVE_POINT,
+    description: 'One score for the whole application: 1 is exceptional, 9 is poor. Historically, applications scoring 1 to 4 have been considered fundable by HDSA\'s SAB.',
+    scale: HDSA_SCALE,
   },
-  recommendations: ['Recommend funding', 'Fundable if resources allow', 'Do not recommend'],
+  recommendations: ['Yes, discuss at the SAB meeting', 'No, discussion not needed'],
   checklist: [
     ...CORE_CHECKS,
     { id: 'coe', label: 'Substantive collaboration with an HDSA Center of Excellence or HD clinical site', category: 'feasibility', patterns: [/Center(s)? of Excellence/i, /\bCOE\b/, /HD clinic/i, /clinical (site|partner|collaborat)/i] },
@@ -1111,12 +1183,14 @@ const HDSA: Framework = {
     ...REVIEWER_CHECKS,
   ],
   guidance: [
-    'Both streams require a meaningful collaboration with an HDSA Center of Excellence or equivalent; nominal arrangements are not sufficient.',
-    'Human Biology favours patient-derived samples, proof-of-response studies, and biomarkers that distinguish responders from non-responders.',
+    'Weigh the criteria in this order: impact, scientific approach, feasibility, strength of candidate and mentor lab, clinical collaboration.',
+    'Both streams require a meaningful collaboration with an HDSA Center of Excellence or equivalent; data access or a letter of support alone is not sufficient.',
+    'Human Biology favours patient-derived samples, proof-of-response studies, and biomarkers that distinguish responders from non-responders; iPSC work must be framed by findings from patient samples.',
     'Human Experience favours cognitive, psychiatric, behavioural, rehabilitation, caregiver, and patient-reported outcomes work with active participants.',
     'Early-career investigators and HD newcomers are especially encouraged; judge mentored applications with that in mind.',
     'Pilot-scale experimental medicine studies with limited power are acceptable when they establish feasibility and generate hypotheses.',
     'Budget caps: $90,000 per year, $72,000 salary and fringe, $30,000 research costs, $5,000 travel, no equipment, no indirects.',
+    'ProposalCentral: every comment box takes at most 2,000 characters including spaces (15,000 for applicant feedback), and you must click outside a box to save it.',
   ],
   expectedSections: ['Abstract', 'Specific Aims', 'Background', 'Significance', 'Research Plan', 'Approach', 'Methods', 'Feasibility', 'Timeline', 'Budget', 'Budget Justification', 'Key Personnel', 'Biographical Sketch', 'Letters of Support', 'Human Subjects', 'Clinical Collaboration'],
 };
@@ -1238,11 +1312,14 @@ export interface CustomFrameworkDef {
     prompts: string[];
     group: CriterionGroup;
     scale?: ScaleDef;
+    unscored?: boolean;
+    maxChars?: number;
   }[];
   criterionScale: ScaleDef;
   overall: { label: string; description: string; scale: ScaleDef };
   recommendations?: string[];
   guidance?: string[];
+  form?: FormSpec;
   createdAt: number;
   updatedAt: number;
 }
@@ -1270,6 +1347,7 @@ export function customToFramework(def: CustomFrameworkDef): Framework {
     checklist: DEFAULT_CHECKLIST,
     guidance: def.guidance ?? [],
     expectedSections: [],
+    form: def.form,
     custom: true,
   };
 }
@@ -1282,11 +1360,12 @@ export function frameworkToCustomDef(fw: Framework, id: string, name?: string): 
     name: name ?? `${fw.name} (copy)`,
     agency: fw.agency,
     blurb: fw.blurb,
-    criteria: fw.criteria.map((c) => ({ id: c.id, name: c.name, short: c.short, description: c.description, prompts: [...c.prompts], group: c.group, scale: c.scale })),
+    criteria: fw.criteria.map((c) => ({ id: c.id, name: c.name, short: c.short, description: c.description, prompts: [...c.prompts], group: c.group, scale: c.scale, unscored: c.unscored, maxChars: c.maxChars })),
     criterionScale: fw.criterionScale,
     overall: { ...fw.overall },
     recommendations: fw.recommendations ? [...fw.recommendations] : undefined,
     guidance: [...fw.guidance],
+    form: fw.form ? JSON.parse(JSON.stringify(fw.form)) : undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -1311,6 +1390,22 @@ export function getFramework(id: string): Framework {
 
 export function criterionScale(fw: Framework, c: Criterion): ScaleDef {
   return c.scale ?? fw.criterionScale;
+}
+
+const DEFAULT_FIELDS: Record<'summary' | 'additional' | 'overallComment', FieldSpec & { label: string }> = {
+  summary: { label: 'Summary of the application' },
+  additional: { label: 'Additional comments' },
+  overallComment: { label: 'Overall rationale' },
+};
+
+/** Label, hint, and limit for one of the free-text boxes, with the framework's overrides applied. */
+export function fieldSpec(fw: Framework, key: 'summary' | 'additional' | 'overallComment'): FieldSpec & { label: string } {
+  return { ...DEFAULT_FIELDS[key], ...(fw.form?.[key] ?? {}) };
+}
+
+/** Label for the recommendation choice ("Recommendation" unless the funder calls it something else). */
+export function recommendationSpec(fw: Framework): { label: string; hint?: string; required?: boolean } {
+  return fw.form?.recommendation ?? { label: 'Recommendation' };
 }
 
 /** Human-readable label for a score value on a scale. */

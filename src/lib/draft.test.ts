@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { composeDraft, draftToMarkdown, draftToPlainText, autoSummary } from './draft';
+import { composeDraft, draftToMarkdown, draftToPlainText, autoSummary, sectionPlainText } from './draft';
 import { getFramework } from './frameworks';
 import type { Annotation, Review } from './types';
 
@@ -130,5 +130,35 @@ describe('autoSummary', () => {
     const s = autoSummary(sampleReview());
     expect(s).toContain('A Study of Things');
     expect(s).toContain('2 aims');
+  });
+});
+
+describe('form-specific boxes', () => {
+  it('renders one criterion as pasteable plain text with its bullets', () => {
+    const r = newReview({ frameworkId: 'hdsa' });
+    r.docs = [{ id: 'd1', name: 'app.pdf', size: 1, pages: 3, addedAt: Date.now(), role: 'application' }];
+    r.scores.impact = { comment: 'Clear relevance to HD biology.' };
+    r.annotations = [annotation({ page: 2, kind: 'weakness', criterionId: 'impact', severity: 'major', quote: 'mouse only', comment: 'no human samples' })];
+    const d = composeDraft(r, getFramework('hdsa'));
+    const impact = d.sections.find((s) => s.id === 'impact')!;
+    expect(impact.scoreLine).toBeUndefined();
+    expect(impact.maxChars).toBe(2000);
+    const text = sectionPlainText(impact);
+    expect(text).toBe('Clear relevance to HD biology.\n\nWeaknesses\n• Major: no human samples (“mouse only”, p. 2)');
+  });
+
+  it('uses the funder\'s labels for the summary, other comments, and discussion answer', () => {
+    const r = newReview({ frameworkId: 'hdsa', title: 'HD app' });
+    r.draft.summary = 'Summary text.';
+    r.draft.additional = 'Other text.';
+    r.overall = { score: 2, comment: 'Feedback text.', recommendation: 'Yes, discuss at the SAB meeting' };
+    const d = composeDraft(r, getFramework('hdsa'));
+    expect(d.labels).toEqual({ summary: 'Comments: Summary', additional: 'Comments: Other' });
+    expect(d.limits).toEqual({ summary: 2000, additional: 2000, overallComment: 15000 });
+    const md = draftToMarkdown(d);
+    expect(md).toContain('## Comments: Summary');
+    expect(md).toContain('## Comments: Other');
+    expect(md).toContain('**Worthy of discussion?** Yes, discuss at the SAB meeting');
+    expect(md).toContain('**Score: 2 Historically fundable**');
   });
 });

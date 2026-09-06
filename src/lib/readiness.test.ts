@@ -72,3 +72,54 @@ describe('computeReadiness', () => {
     expect(row.goodness).toBeGreaterThan(0.5); // score 2 on a 1-best-of-9 scale is good
   });
 });
+
+describe('computeReadiness with a comment-only score sheet (HDSA)', () => {
+  const hdsa = getFramework('hdsa');
+  const long = (n: number) => 'x'.repeat(n);
+  const complete = (): Review => {
+    const scores: Review['scores'] = {};
+    for (const c of hdsa.criteria.filter((c) => c.group === 'core')) scores[c.id] = { comment: 'Comments that address this criterion in some detail.' };
+    return newReview({
+      frameworkId: 'hdsa',
+      scores,
+      overall: { score: 3, comment: 'Feedback for the applicant that is long enough.', recommendation: hdsa.recommendations![0] },
+      draft: { summary: 'A summary of the application.', additional: 'Nothing further.', confidential: '' },
+    });
+  };
+
+  it('treats a comment as completing an unscored criterion', () => {
+    const r = computeReadiness(newReview({ frameworkId: 'hdsa', scores: { impact: { comment: 'Strong impact on HD biology.' } } }), hdsa);
+    const impact = r.rows.find((x) => x.id === 'impact')!;
+    expect(impact.unscored).toBe(true);
+    expect(impact.scored).toBe(true);
+    expect(impact.goodness).toBeUndefined();
+    expect(r.blockers.some((b) => b.id === 'score-impact')).toBe(false);
+    expect(r.blockers.find((b) => b.id === 'score-approach')?.text).toBe('Comment on Approach');
+  });
+
+  it('requires the form\'s answer, summary, and other-comments boxes', () => {
+    const r = computeReadiness(newReview({ frameworkId: 'hdsa' }), hdsa);
+    expect(r.blockers.map((b) => b.id)).toEqual(expect.arrayContaining(['recommendation', 'summary-required', 'additional-required', 'overall-rationale']));
+    expect(r.blockers.find((b) => b.id === 'overall-rationale')?.text).toBe('Write the feedback for the applicant');
+    expect(r.suggestions.some((s) => s.id === 'summary')).toBe(false);
+  });
+
+  it('is ready once every box is filled and within its limit', () => {
+    const r = computeReadiness(complete(), hdsa);
+    expect(r.blockers).toHaveLength(0);
+    expect(r.ready).toBe(true);
+  });
+
+  it('blocks a box that exceeds the funder\'s character limit, counting the tagged bullets', () => {
+    const review = complete();
+    review.scores.impact = { comment: long(1990) };
+    review.annotations = [ann({ kind: 'weakness', criterionId: 'impact', comment: 'This pushes the pasted box over the limit.' })];
+    review.draft.summary = long(2001);
+    review.overall.comment = long(15001);
+    const r = computeReadiness(review, hdsa);
+    expect(r.blockers.some((b) => b.id === 'over-impact' && b.tab === 'score')).toBe(true);
+    expect(r.blockers.find((b) => b.id === 'over-summary')?.text).toBe('Comments: Summary is 1 character over the 2,000 limit');
+    expect(r.blockers.some((b) => b.id === 'over-overall')).toBe(true);
+    expect(r.ready).toBe(false);
+  });
+});

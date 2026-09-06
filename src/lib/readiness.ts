@@ -1,4 +1,5 @@
-import { criterionScale, scoreLabel, type Framework } from './frameworks';
+import { criterionScale, fieldSpec, recommendationSpec, scoreLabel, type Framework } from './frameworks';
+import { composeDraft, sectionPlainText } from './draft';
 import type { PanelTab } from './store';
 import type { Review } from './types';
 
@@ -9,6 +10,8 @@ export interface ScorecardRow {
   scoreValue?: number | string;
   scoreText: string;
   scored: boolean;
+  /** True when the funder wants comments only for this criterion; "scored" then means "commented". */
+  unscored: boolean;
   strengths: number;
   weaknesses: number;
   questions: number;
@@ -58,19 +61,22 @@ export function computeReadiness(review: Review, fw: Framework): Readiness {
     const s = review.scores[c.id];
     const scale = criterionScale(fw, c);
     const notes = notesFor(c.id);
-    const scored = s?.score !== undefined && s?.score !== '';
+    const unscored = !!c.unscored;
+    const commented = (s?.comment?.trim().length ?? 0) > 0;
+    const scored = unscored ? commented : s?.score !== undefined && s?.score !== '';
     return {
       id: c.id,
       name: c.name,
       short: c.short,
-      scoreValue: s?.score,
-      scoreText: scored ? scoreLabel(scale, s?.score) : '',
+      scoreValue: unscored ? undefined : s?.score,
+      scoreText: unscored ? (commented ? 'Commented' : '') : scored ? scoreLabel(scale, s?.score) : '',
       scored,
+      unscored,
       strengths: notes.filter((a) => a.kind === 'strength').length,
       weaknesses: notes.filter((a) => a.kind === 'weakness').length,
       questions: notes.filter((a) => a.kind === 'question').length,
       hasRationale: (s?.comment?.trim().length ?? 0) >= 15,
-      goodness: goodnessOf(fw, c.id, s?.score),
+      goodness: unscored ? undefined : goodnessOf(fw, c.id, s?.score),
     };
   });
 
@@ -78,13 +84,33 @@ export function computeReadiness(review: Review, fw: Framework): Readiness {
   const suggestions: ReadinessItem[] = [];
 
   for (const row of rows) {
-    if (!row.scored) blockers.push({ id: `score-${row.id}`, kind: 'blocker', text: `Score ${row.short}`, tab: 'score' });
+    if (!row.scored) blockers.push({ id: `score-${row.id}`, kind: 'blocker', text: row.unscored ? `Comment on ${row.short}` : `Score ${row.short}`, tab: 'score' });
     else if (!row.hasRationale && row.strengths + row.weaknesses + row.questions === 0)
       suggestions.push({ id: `arg-${row.id}`, kind: 'suggestion', text: `Add a rationale or tag evidence for ${row.short}`, tab: 'score' });
   }
 
+  const summarySpec = fieldSpec(fw, 'summary');
+  const additionalSpec = fieldSpec(fw, 'additional');
+  const overallSpec = fieldSpec(fw, 'overallComment');
+  const recSpec = recommendationSpec(fw);
+
   if (review.overall.score === undefined || review.overall.score === '') blockers.push({ id: 'overall-score', kind: 'blocker', text: `Give an ${fw.overall.label.toLowerCase()}`, tab: 'score' });
-  if (review.overall.comment.trim().length < 20) blockers.push({ id: 'overall-rationale', kind: 'blocker', text: 'Write the overall rationale', tab: 'score' });
+  if (review.overall.comment.trim().length < 20) blockers.push({ id: 'overall-rationale', kind: 'blocker', text: `Write the ${overallSpec.label.toLowerCase()}`, tab: 'score' });
+  if (recSpec.required && fw.recommendations?.length && !review.overall.recommendation)
+    blockers.push({ id: 'recommendation', kind: 'blocker', text: `Answer “${recSpec.label}”`, tab: 'score' });
+  if (summarySpec.required && review.draft.summary.trim().length === 0) blockers.push({ id: 'summary-required', kind: 'blocker', text: `Write the ${summarySpec.label.toLowerCase()} box`, tab: 'draft' });
+  if (additionalSpec.required && review.draft.additional.trim().length === 0) blockers.push({ id: 'additional-required', kind: 'blocker', text: `Fill in the ${additionalSpec.label.toLowerCase()} box`, tab: 'draft' });
+
+  // The funder's character limits: the form rejects anything longer, so these block.
+  const draft = composeDraft(review, fw);
+  const overBy = (text: string, max: number | undefined) => (max && text.length > max ? text.length - max : 0);
+  const overLimit = (id: string, label: string, over: number, max: number, tab: PanelTab) => {
+    if (over > 0) blockers.push({ id: `over-${id}`, kind: 'blocker', text: `${label} is ${over.toLocaleString()} character${over === 1 ? '' : 's'} over the ${max.toLocaleString()} limit`, tab });
+  };
+  for (const s of draft.sections) if (s.maxChars) overLimit(s.id, s.heading, overBy(sectionPlainText(s), s.maxChars), s.maxChars, 'score');
+  if (summarySpec.maxChars) overLimit('summary', summarySpec.label, overBy(review.draft.summary, summarySpec.maxChars), summarySpec.maxChars, 'draft');
+  if (additionalSpec.maxChars) overLimit('additional', additionalSpec.label, overBy(review.draft.additional, additionalSpec.maxChars), additionalSpec.maxChars, 'draft');
+  if (overallSpec.maxChars) overLimit('overall', overallSpec.label, overBy(review.overall.comment, overallSpec.maxChars), overallSpec.maxChars, 'score');
 
   // Balance and constructiveness nudges.
   for (const row of rows) {
@@ -94,7 +120,7 @@ export function computeReadiness(review: Review, fw: Framework): Readiness {
   const majorNoFix = review.annotations.filter((a) => a.kind === 'weakness' && a.severity === 'major' && a.comment.trim().length < 10);
   if (majorNoFix.length) suggestions.push({ id: 'major-fix', kind: 'suggestion', text: `Explain the problem and a possible fix for ${majorNoFix.length} major weakness${majorNoFix.length === 1 ? '' : 'es'}`, tab: 'notes' });
 
-  if (review.draft.summary.trim().length < 40) suggestions.push({ id: 'summary', kind: 'suggestion', text: 'Write a short summary of the application', tab: 'draft' });
+  if (review.draft.summary.trim().length < 40 && !blockers.some((b) => b.id === 'summary-required')) suggestions.push({ id: 'summary', kind: 'suggestion', text: 'Write a short summary of the application', tab: 'draft' });
 
   const coi = review.checklist['r-coi']?.state ?? 'unset';
   if (coi === 'unset') suggestions.push({ id: 'coi', kind: 'suggestion', text: 'Confirm you have no conflict of interest', tab: 'checklist' });

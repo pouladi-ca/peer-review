@@ -28,7 +28,7 @@ export async function draftToDocx(d: Draft, opts: { includeConfidential?: boolea
   const children: Paragraph[] = [];
   children.push(new Paragraph({ text: `Review: ${d.title}`, heading: HeadingLevel.TITLE, alignment: AlignmentType.LEFT }));
   children.push(para(`${d.frameworkName}. Drafted ${new Date(d.generatedAt).toLocaleDateString()}.`, { italics: true, spacingAfter: 240 }));
-  children.push(new Paragraph({ text: 'Summary of the application', heading: HeadingLevel.HEADING_1 }));
+  children.push(new Paragraph({ text: d.labels.summary, heading: HeadingLevel.HEADING_1 }));
   children.push(...multiline(d.summary));
 
   for (const s of d.sections) {
@@ -51,11 +51,11 @@ export async function draftToDocx(d: Draft, opts: { includeConfidential?: boolea
 
   children.push(new Paragraph({ text: d.overall.heading, heading: HeadingLevel.HEADING_1 }));
   if (d.overall.scoreLine) children.push(para(d.overall.scoreLine, { bold: true }));
-  if (d.overall.recommendation) children.push(para(`Recommendation: ${d.overall.recommendation}`, { bold: true }));
+  if (d.overall.recommendation) children.push(para(`${d.overall.recommendationLabel} ${d.overall.recommendation}`, { bold: true }));
   if (d.overall.body) children.push(...multiline(d.overall.body));
 
   if (d.additionalComments) {
-    children.push(new Paragraph({ text: 'Additional comments', heading: HeadingLevel.HEADING_1 }));
+    children.push(new Paragraph({ text: d.labels.additional, heading: HeadingLevel.HEADING_1 }));
     children.push(...multiline(d.additionalComments));
   }
   if (opts.includeConfidential && d.confidential) {
