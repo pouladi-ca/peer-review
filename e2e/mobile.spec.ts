@@ -31,6 +31,19 @@ test('the view toggle stays within reach and switches both ways on a phone', asy
   await page.screenshot({ path: path.join(shots, '20-phone-pages.png') });
   await page.getByRole('radio', { name: 'Read' }).click();
   await expect(page.locator('.read-content')).toBeVisible({ timeout: 60_000 });
+  // The reading position carries across both ways: read on page 3, the PDF opens on page 3,
+  // and coming back lands on page 3 again (phones used to restore against an unmeasured layout).
+  await page.getByLabel('Page number').fill('3');
+  await expect(page.getByLabel('Page number')).toHaveValue('3');
+  await page.waitForTimeout(500);
+  await page.getByRole('radio', { name: 'Pages' }).click();
+  await expect(page.locator('.pdf-canvas').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByLabel('Page number')).toHaveValue('3', { timeout: 10_000 });
+  await page.waitForTimeout(500);
+  await expect(page.getByLabel('Page number')).toHaveValue('3');
+  await page.getByRole('radio', { name: 'Read' }).click();
+  await expect(page.locator('.read-content')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByLabel('Page number')).toHaveValue('3', { timeout: 10_000 });
   // The "more" menu holds the secondary controls.
   await page.getByRole('button', { name: 'More' }).click();
   await expect(page.getByRole('menuitem', { name: /Sign out/ })).toBeVisible();

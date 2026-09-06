@@ -33,9 +33,12 @@ export function PdfViewer() {
   const searchQuery = useStore((s) => s.searchQuery);
   const navTab = useStore((s) => s.navTab);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [containerW, setContainerW] = useState(800);
+  // Zero until the scroll container is measured: laying pages out at a guessed width and
+  // restoring the scroll position against it put phones on the wrong page.
+  const [containerW, setContainerW] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
-  const [viewH, setViewH] = useState(800);
+  const [viewH, setViewH] = useState(0);
+  const measured = containerW > 0 && viewH > 0;
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [flash, setFlash] = useState<{ page: number; rect: Rect; id: number } | null>(null);
   const fw = useFramework(review.frameworkId);
@@ -50,6 +53,7 @@ export function PdfViewer() {
   const fitW = Math.min(MAX_FIT, Math.max(120, containerW - PAD * 2));
   const fitH = Math.max(160, viewH - PAD * 2);
   const layout = useMemo(() => {
+    if (!measured) return [];
     let top = PAD;
     return dims.map((d) => {
       const byWidth = fitW / Math.max(1, d.w);
@@ -61,8 +65,24 @@ export function PdfViewer() {
       top += h + GAP;
       return entry;
     });
-  }, [dims, fitW, fitH, fitMode, zoom]);
+  }, [dims, fitW, fitH, fitMode, zoom, measured]);
   const totalH = layout.length ? layout[layout.length - 1].top + layout[layout.length - 1].h + PAD : 0;
+
+  // When the layout changes (zoom, fit mode, a resize, a rotated phone), keep the same
+  // point of the same page under the top of the viewport instead of the same pixel offset.
+  const prevLayout = useRef<typeof layout>([]);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const prev = prevLayout.current;
+    prevLayout.current = layout;
+    if (!el || !prev.length || !layout.length || prev === layout) return;
+    const top = el.scrollTop;
+    let i = 0;
+    for (let k = 0; k < prev.length; k++) if (prev[k].top <= top) i = k;
+    if (!layout[i]) return;
+    const frac = Math.max(0, Math.min(1, (top - prev[i].top) / Math.max(1, prev[i].h)));
+    el.scrollTop = layout[i].top + frac * layout[i].h;
+  }, [layout]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -90,8 +110,13 @@ export function PdfViewer() {
   // A deliberate scroll dismisses a pending selection; programmatic scrolls do not.
   const dismissPending = useCallback(() => setPending((cur) => (cur ? null : cur)), []);
 
+  // Restore the last page when a document becomes ready.
+  const restoredFor = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!layout.length) return;
+    // Until the shared position has been restored, the scroll offset says nothing about
+    // where the reviewer is; publishing it would overwrite the page they came from.
+    if (!layout.length || !doc || restoredFor.current !== doc.id) return;
     const probe = scrollTop + Math.min(viewH * 0.35, 300);
     let cur = 1;
     for (let i = 0; i < layout.length; i++) {
@@ -99,10 +124,8 @@ export function PdfViewer() {
       else break;
     }
     useStore.getState().setPage(cur);
-  }, [scrollTop, layout, viewH]);
+  }, [scrollTop, layout, viewH, doc]);
 
-  // Restore the last page when a document becomes ready.
-  const restoredFor = useRef<string | null>(null);
   useEffect(() => {
     if (!ready || !doc || !layout.length) return;
     if (restoredFor.current === doc.id) return;
@@ -111,6 +134,7 @@ export function PdfViewer() {
     const el = scrollRef.current;
     if (el && last > 1 && layout[last - 1]) {
       el.scrollTop = layout[last - 1].top - PAD;
+      setScrollTop(el.scrollTop);
       useStore.getState().announceResume(doc.id, last, sectionAt(doc.outline, last, 1)?.title);
     }
   }, [ready, doc, layout, review.lastPage]);

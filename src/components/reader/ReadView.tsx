@@ -22,6 +22,8 @@ import { ViewModeToggle } from '../viewer/ViewModeToggle';
 import { IconButton, KIND_META } from '../ui';
 
 const STICKY = 8;
+/** Jumps place the target block this far below the top edge, so "current page" is read there too. */
+const JUMP_OFFSET = 72;
 
 function readScale(): number {
   try {
@@ -83,7 +85,9 @@ export function ReadView() {
       const el = scrollRef.current;
       const root = contentRef.current;
       if (!el || !root) return;
-      const top = el.getBoundingClientRect().top + STICKY;
+      // Probe just below where jumps land a block, so a jump to page N reports page N and
+      // not the tail of the previous block still visible above it.
+      const top = el.getBoundingClientRect().top + JUMP_OFFSET + STICKY;
       const blocks = root.querySelectorAll<HTMLElement>('[data-block]');
       let current: HTMLElement | null = null;
       for (const b of blocks) {
@@ -110,7 +114,7 @@ export function ReadView() {
     if (!el || !root || !blockId) return;
     const target = root.querySelector<HTMLElement>(`[data-block="${CSS.escape(blockId)}"]`);
     if (!target) return;
-    const top = target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 72;
+    const top = target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - JUMP_OFFSET;
     el.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     if (flash) {
       target.classList.add('is-flash');
