@@ -89,6 +89,13 @@ class ReflowManager:
             if figures.exists():
                 shutil.rmtree(figures)
             doc = build_document(pdf_path, page_list, out, lambda d, t, m: self._report(key, d, t, m))
+            # The page view's positioned text goes in its own file so doc.json stays small;
+            # it is written first, since doc.json is what marks the job ready.
+            page_text = doc.pop("pageText", None)
+            if page_text is not None:
+                ptmp = out / "pages.json.tmp"
+                ptmp.write_text(json.dumps({"version": 1, "pages": page_text}), encoding="utf-8")
+                ptmp.replace(out / "pages.json")
             tmp = out / "doc.json.tmp"
             tmp.write_text(json.dumps(doc), encoding="utf-8")
             tmp.replace(out / "doc.json")

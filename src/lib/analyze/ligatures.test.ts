@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildLigatureRepair } from './ligatures';
+import { buildLigatureRepair, lazyLigatureRepair } from './ligatures';
 
 const N = '\u0000';
 
@@ -33,5 +33,16 @@ describe('ligature repair', () => {
   it('repairs quotes containing several tokens', () => {
     const r = buildLigatureRepair([`Sta${N}s${N}cal analysis of the popula${N}on.`]);
     expect(r.fix(`Sta${N}s${N}cal analysis of the popula${N}on.`)).toBe('Statistical analysis of the population.');
+  });
+});
+
+describe('lazyLigatureRepair', () => {
+  it('resolves broken selections against clean document vocabulary', () => {
+    const repair = lazyLigatureRepair(['The budget justification lists specific aims.', 'Staff effort is sufficient.']);
+    const NUL = '\u0000';
+    expect(repair.fix(`jus${NUL}fica${NUL}on`)).toBe('justification');
+    expect(repair.fix(`speci${NUL}c`)).toBe('specific');
+    expect(repair.fix(`su${NUL}cient`)).toBe('sufficient');
+    expect(repair.fix('no nulls here')).toBe('no nulls here');
   });
 });

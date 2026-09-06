@@ -7,6 +7,7 @@ import { plural } from '../../lib/format';
 import type { QuickFacts } from '../../lib/types';
 import { ProgressRing } from '../ui';
 import { Scorecard } from '../Scorecard';
+import { readingLabel } from '../../lib/format';
 
 const FIELDS: { key: keyof QuickFacts; label: string }[] = [
   { key: 'title', label: 'Title' },
@@ -50,7 +51,7 @@ export function BriefPanel() {
 
       {doc && doc.status === 'loading' && (
         <section className="card">
-          <div className="card-title">{doc.pdf ? `Reading page ${Math.max(1, Math.round(doc.progress * doc.pdf.numPages))} of ${doc.pdf.numPages}` : 'Opening the PDF'}</div>
+          <div className="card-title">{readingLabel(doc)}</div>
           <div className="progress-bar">
             <span style={{ width: `${Math.round(doc.progress * 100)}%` }} />
           </div>

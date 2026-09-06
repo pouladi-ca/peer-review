@@ -35,3 +35,11 @@ export function clip(s: string, n: number): string {
 
 export const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 export const mod = isMac ? '⌘' : 'Ctrl';
+
+/** What an in-progress document import is doing, for the strip and the Brief panel. */
+export function readingLabel(doc: { pdf?: { numPages: number }; progress: number; message?: string }): string {
+  if (doc.message) return doc.message;
+  const total = doc.pdf?.numPages ?? 0;
+  if (!total) return 'Opening the PDF';
+  return `Reading page ${Math.max(1, Math.round(doc.progress * total))} of ${total}`;
+}

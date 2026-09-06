@@ -130,6 +130,8 @@ export const api = {
   startReflow: (reviewId: string, docId: string, pages?: number[], force = false) =>
     request<import('./reflow/types').ReflowStatus>('POST', `/api/reviews/${encodeURIComponent(reviewId)}/docs/${encodeURIComponent(docId)}/reflow`, { pages: pages ?? null, force }),
   reflowDoc: (reviewId: string, docId: string) => request<import('./reflow/types').ReflowDoc>('GET', `/api/reviews/${encodeURIComponent(reviewId)}/docs/${encodeURIComponent(docId)}/reflow/doc.json`),
+  /** Positioned text per page, extracted on the server alongside the reflow. */
+  reflowPages: (reviewId: string, docId: string) => request<{ version: number; pages: import('./types').PageText[] }>('GET', `/api/reviews/${encodeURIComponent(reviewId)}/docs/${encodeURIComponent(docId)}/reflow/pages.json`),
   figureUrl: (reviewId: string, docId: string, src: string) => `/api/reviews/${encodeURIComponent(reviewId)}/docs/${encodeURIComponent(docId)}/reflow/${src}`,
   async downloadFile(reviewId: string, docId: string): Promise<Blob> {
     const res = await fetch(`/api/reviews/${encodeURIComponent(reviewId)}/files/${encodeURIComponent(docId)}`, { credentials: 'same-origin' });

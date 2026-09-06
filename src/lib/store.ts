@@ -7,6 +7,7 @@ import { SyncEngine, deviceId, type SyncStatus } from './sync/engine';
 import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef } from './frameworks';
 import { getSetting, setSetting } from './db';
 import { extractAllPages, loadPdf, pageDims, repairLigatures, type PDFDocumentProxy } from './pdf';
+import { lazyLigatureRepair } from './analyze/ligatures';
 import type { LigatureRepair } from './analyze/ligatures';
 import type { ReflowDoc, ReflowStatus } from './reflow/types';
 import { isTouchLike } from '../hooks/useMedia';
@@ -40,6 +41,10 @@ export interface RuntimeDoc {
   facts: QuickFacts;
   status: 'loading' | 'ready' | 'error';
   progress: number;
+  /** What the import is doing right now, when the server is doing it. */
+  message?: string;
+  /** Where the text came from: the server's extractor, or pdf.js in this browser as a fallback. */
+  source?: 'server' | 'browser';
   error?: string;
   /** Present when the PDF had unmapped ligature glyphs that were repaired. */
   ligatures?: LigatureRepair;
@@ -247,11 +252,56 @@ export const useStore = create<State>((set, get) => {
     }, 500);
   };
 
+  /** How long to wait for the server's extraction before falling back to pdf.js in this browser. */
+  const SERVER_TEXT_TIMEOUT_MS = 5 * 60 * 1000;
+
   /**
-   * Parse a PDF and extract its text. The viewer can show pages as soon as `onPdf`
-   * fires; facts, outline, and search fill in when extraction finishes.
+   * Wait for the server's reflow of a document to finish (starting it if needed), mirroring
+   * its progress into the runtime doc. Resolves with the final reflow status; 'none' means
+   * we gave up waiting.
    */
-  const loadRuntimeDoc = async (docId: string, blob: Blob, onPdf?: (pdf: PDFDocumentProxy) => void) => {
+  const awaitServerText = (reviewId: string, docId: string): Promise<ReflowState['status']> =>
+    new Promise((resolve) => {
+      let done = false;
+      const finish = (status: ReflowState['status']) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        unsub();
+        resolve(status);
+      };
+      const consider = (st: ReflowState | undefined) => {
+        if (get().review?.id !== reviewId) return finish('none');
+        if (!st) return;
+        if (st.status === 'processing') {
+          const progress = st.total ? Math.min(1, (st.done ?? 0) / st.total) : 0;
+          set((s) => (s.docs[docId] ? { docs: { ...s.docs, [docId]: { ...s.docs[docId], progress, message: st.message } } } : {}));
+        } else if (st.status === 'none' && st.message) {
+          set((s) => (s.docs[docId] ? { docs: { ...s.docs, [docId]: { ...s.docs[docId], message: st.message } } } : {}));
+        }
+        if (st.status === 'ready' || st.status === 'error') finish(st.status);
+      };
+      let last = get().reflow[docId];
+      const unsub = useStore.subscribe((s) => {
+        const cur = s.reflow[docId];
+        if (cur !== last) {
+          last = cur;
+          consider(cur);
+        }
+      });
+      const timer = setTimeout(() => finish('none'), SERVER_TEXT_TIMEOUT_MS);
+      consider(last);
+      if (!done) void get().ensureReflow(docId);
+    });
+
+  /**
+   * Parse a PDF and get its text. The viewer can show pages as soon as `onPdf` fires.
+   * The text itself comes from the server's extractor (the same pass that builds the
+   * reading view), so a phone only renders pages; pdf.js extracts in this browser only
+   * when the server cannot: offline, an extraction failure, or an old reflow without
+   * page text. Facts, outline, and search fill in when the text arrives.
+   */
+  const loadRuntimeDoc = async (reviewId: string, docId: string, blob: Blob, onPdf?: (pdf: PDFDocumentProxy) => void) => {
     set((s) => ({ docs: { ...s.docs, [docId]: { id: docId, pages: [], outline: [], facts: {}, status: 'loading', progress: 0 } } }));
     try {
       const buf = await blob.arrayBuffer();
@@ -259,15 +309,36 @@ export const useStore = create<State>((set, get) => {
       const dims = await pageDims(pdf);
       set((s) => ({ docs: { ...s.docs, [docId]: { ...s.docs[docId], pdf, dims } } }));
       onPdf?.(pdf);
-      const pages = await extractAllPages(pdf, (done, total) => {
-        set((s) => ({ docs: { ...s.docs, [docId]: { ...s.docs[docId], progress: done / total } } }));
-      });
-      const ligatures = repairLigatures(pages);
+
+      let pages: PageText[] | null = null;
+      let ligatures: LigatureRepair | undefined;
+      let source: RuntimeDoc['source'] = 'server';
+      const status = await awaitServerText(reviewId, docId);
+      if (status === 'ready') {
+        try {
+          const got = (await api.reflowPages(reviewId, docId)).pages;
+          if (got.length === pdf.numPages) pages = got;
+        } catch (e) {
+          console.warn('page text not available from the server; extracting here', e);
+        }
+      }
+      if (get().review?.id !== reviewId) return null;
+      if (pages) {
+        ligatures = lazyLigatureRepair(pages.map((p) => p.text));
+      } else {
+        source = 'browser';
+        set((s) => ({ docs: { ...s.docs, [docId]: { ...s.docs[docId], progress: 0, message: undefined } } }));
+        pages = await extractAllPages(pdf, (done, total) => {
+          set((s) => ({ docs: { ...s.docs, [docId]: { ...s.docs[docId], progress: done / total } } }));
+        });
+        const repaired = repairLigatures(pages);
+        ligatures = repaired.count ? repaired : undefined;
+      }
       const review = get().review;
       const fw = review ? getFramework(review.frameworkId) : undefined;
       const outline = detectOutline(pages, fw);
       const facts = extractFacts(pages);
-      set((s) => ({ docs: { ...s.docs, [docId]: { id: docId, pdf, dims, pages, outline, facts, status: 'ready', progress: 1, ligatures: ligatures.count ? ligatures : undefined } } }));
+      set((s) => ({ docs: { ...s.docs, [docId]: { id: docId, pdf, dims, pages, outline, facts, status: 'ready', progress: 1, source, ligatures } } }));
       return { pages, facts };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -352,7 +423,7 @@ export const useStore = create<State>((set, get) => {
         console.error(e);
       }
     })();
-    await loadRuntimeDoc(doc.id, file.blob);
+    await loadRuntimeDoc(reviewId, doc.id, file.blob);
     const pdf = get().docs[doc.id]?.pdf;
     if (pdf && get().review?.docs.find((d) => d.id === doc.id)?.pages !== pdf.numPages) {
       get().update((r) => {
@@ -501,7 +572,7 @@ export const useStore = create<State>((set, get) => {
       const opened = new Promise<void>((resolve) => (markOpened = resolve));
       void (async () => {
         for (const [i, doc] of review.docs.entries()) {
-          const res = await loadRuntimeDoc(doc.id, files[i], (pdf) => {
+          const res = await loadRuntimeDoc(review.id, doc.id, files[i], (pdf) => {
             get().update((r) => {
               const d = r.docs.find((x) => x.id === doc.id);
               if (d) d.pages = pdf.numPages;
@@ -584,11 +655,15 @@ export const useStore = create<State>((set, get) => {
         rv.docs.push({ id, name: file.name, size: file.size, pages: 0, addedAt: Date.now(), role });
       });
       set({ activeDocId: id, page: 1 });
-      api.uploadFile(r.id, id, file).catch((e) => {
-        console.error(e);
-        get().notify(`${file.name} could not be uploaded yet.`, 'error');
-      });
-      await loadRuntimeDoc(id, file);
+      void uploadDoc(r.id, { id, name: file.name, size: file.size, pages: 0, addedAt: Date.now(), role }, file)
+        .then(() => {
+          if (get().review?.id === r.id) void get().ensureReflow(id);
+        })
+        .catch((e) => {
+          console.error(e);
+          get().notify(`${file.name} could not be uploaded yet.`, 'error');
+        });
+      await loadRuntimeDoc(r.id, id, file);
       const pdf = get().docs[id]?.pdf;
       get().update((rv) => {
         const d = rv.docs.find((x) => x.id === id);

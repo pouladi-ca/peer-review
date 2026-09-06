@@ -1,6 +1,7 @@
 import { BookOpen, Highlighter, Gauge, ListChecks, PenLine, List, Loader2, UploadCloud, ScanText } from 'lucide-react';
 import { useStore, type PanelTab } from '../lib/store';
 import { useIsPhone } from '../hooks/useMedia';
+import { readingLabel } from '../lib/format';
 import { TopBar } from './TopBar';
 import { Navigator } from './Navigator';
 import { PdfViewer } from './viewer/PdfViewer';
@@ -100,11 +101,7 @@ function ImportStrip() {
   const reading = doc?.status === 'loading';
   if (!reading && uploads.length === 0) return null;
   const items: { key: string; icon: React.ReactNode; label: string; fraction: number }[] = [];
-  if (reading) {
-    const total = doc.pdf?.numPages ?? 0;
-    const done = Math.max(1, Math.round(doc.progress * total));
-    items.push({ key: 'read', icon: <ScanText size={13} />, label: total ? `Reading page ${done} of ${total}` : 'Opening the PDF', fraction: doc.progress });
-  }
+  if (reading) items.push({ key: 'read', icon: <ScanText size={13} />, label: readingLabel(doc), fraction: doc.progress });
   for (const [i, u] of uploads.entries()) {
     items.push({ key: `up-${i}`, icon: <UploadCloud size={13} />, label: `Uploading${uploads.length > 1 ? ` ${u.name}` : ''} ${Math.round(u.fraction * 100)}%`, fraction: u.fraction });
   }
@@ -112,7 +109,7 @@ function ImportStrip() {
     <div className="import-strip" role="status" aria-live="polite">
       <Loader2 size={13} className="spin" />
       {items.map((it) => (
-        <span key={it.key} className="import-item" title={it.key === 'read' ? 'Extracting text for the outline, search, and checklist. You can read meanwhile.' : 'Sending the PDF to your server so other devices and the reading view can use it.'}>
+        <span key={it.key} className="import-item" title={it.key === 'read' ? 'Your server is extracting the text for the outline, search, and checklist. You can read meanwhile.' : 'Sending the PDF to your server so other devices and the reading view can use it.'}>
           {it.icon}
           <span className="import-label">{it.label}</span>
           <span className="import-bar">

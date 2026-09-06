@@ -175,3 +175,41 @@ export function buildLigatureRepair(texts: string[]): LigatureRepair {
   };
   return { count: broken.size, dominant, fix, map };
 }
+
+/**
+ * A repair built from text that is already clean (the server's extraction), for fixing
+ * selections copied from the pdf.js text layer, which still carries the NULs. Each broken
+ * token is resolved on first sight against the document's own vocabulary, which is a
+ * better dictionary than the broken text ever was.
+ */
+export function lazyLigatureRepair(texts: string[]): LigatureRepair {
+  const vocab = new Set<string>();
+  for (const t of texts) for (const w of wordsOf(t)) vocab.add(w.toLowerCase());
+  const map = new Map<string, string>();
+  const dominant = 'ti';
+  const scoreFill = (f: string): number => {
+    const lower = f.toLowerCase();
+    let score = 0;
+    if (vocab.has(lower)) score += 10;
+    if (COMMON.has(lower)) score += 6;
+    for (const m of MORPHEMES) if (m.rx.test(lower)) score += m.score;
+    return score;
+  };
+  const resolve = (token: string): string => {
+    const cached = map.get(token);
+    if (cached) return cached;
+    let out = token.split(NUL).join(dominant);
+    if (holeCount(token) <= 4) {
+      let best: { f: string; score: number } | undefined;
+      for (const f of fills(token)) {
+        const score = scoreFill(f);
+        if (!best || score > best.score) best = { f, score };
+      }
+      if (best && best.score > 0) out = best.f;
+    }
+    map.set(token, out);
+    return out;
+  };
+  const fix = (s: string): string => (s.includes(NUL) ? s.replace(BROKEN_TOKEN, (m) => resolve(m)) : s);
+  return { count: 0, dominant, fix, map };
+}

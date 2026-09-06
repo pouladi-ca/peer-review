@@ -1443,6 +1443,92 @@ def guess_title(doc: pymupdf.Document, fallback: str) -> str:
     return clean_metadata_title((doc.metadata or {}).get("title")) or fallback
 
 
+def page_text_json(pd: PageData) -> dict:
+    """The page's text with positions, in the shape the browser's page view expects.
+
+    This mirrors what the client used to compute with pdf.js so that the outline, quick
+    facts, search, and note placement behave the same whichever side extracted the text:
+    spans sorted into reading order, grouped into rows by vertical position, touching spans
+    merged so that every run is separated by exactly one space, and the page text made of
+    the rows joined by newlines. Coordinates are normalised to the page size.
+    """
+    W = pd.width or 1.0
+    H = pd.height or 1.0
+    items: list[list] = []  # [text, x, y, w, h, size]
+    for ln in pd.lines:
+        for sp in ln.spans:
+            if not sp.text.strip():
+                continue
+            b = sp.bbox
+            items.append([sp.text, b.x0, b.y0, max(b.width, 0.0), max(b.height, sp.size), sp.size])
+    items.sort(key=lambda it: (it[2], it[1]))
+    rows: list[list[list]] = []
+    for it in items:
+        cur = rows[-1] if rows else None
+        if cur is not None and abs(cur[0][2] - it[2]) <= max(cur[0][5], it[5]) * 0.5:
+            cur.append(it)
+        else:
+            rows.append([it])
+    runs: list[dict] = []
+    lines: list[dict] = []
+    texts: list[str] = []
+    for row in rows:
+        row.sort(key=lambda it: it[1])
+        merged: list[list] = []
+        for it in row:
+            last = merged[-1] if merged else None
+            if (
+                last is not None
+                and it[1] - (last[1] + last[3]) < last[5] * 0.15
+                and not last[0].endswith((" ", "\u00a0"))
+                and not it[0].startswith((" ", "\u00a0"))
+            ):
+                last[0] += it[0]
+                last[3] = max(last[3], it[1] + it[3] - last[1])
+                last[4] = max(last[4], it[4])
+            else:
+                merged.append([it[0].rstrip() or it[0], it[1], it[2], it[3], it[4], it[5]])
+        line_index = len(lines)
+        line_runs = []
+        for m in merged:
+            t = m[0].strip()
+            if not t:
+                continue
+            line_runs.append(
+                {
+                    "str": t,
+                    "x": round(m[1] / W, 4),
+                    "y": round(m[2] / H, 4),
+                    "w": round(m[3] / W, 4),
+                    "h": round(m[4] / H, 4),
+                    "size": round(m[5], 2),
+                    "line": line_index,
+                }
+            )
+        if not line_runs:
+            continue
+        text = " ".join(r["str"] for r in line_runs)
+        runs.extend(line_runs)
+        texts.append(text)
+        lines.append(
+            {
+                "text": text,
+                "size": round(max(m[5] for m in merged), 2),
+                "y": round(min(m[2] for m in merged) / H, 4),
+                "x": round(merged[0][1] / W, 4),
+                "page": pd.number,
+            }
+        )
+    return {
+        "page": pd.number,
+        "width": round(W, 2),
+        "height": round(H, 2),
+        "text": "\n".join(texts),
+        "lines": lines,
+        "runs": runs,
+    }
+
+
 def progress_total(pages: list[int]) -> int:
     """The number of progress steps `build_document` will report for `pages`.
 
@@ -1711,4 +1797,6 @@ def _build(
         "blocks": blocks,
         "figures": figures,
         "toc": toc,
+        # Positioned text for the browser's page view; the job runner stores it separately.
+        "pageText": [page_text_json(pd) for pd in page_data],
     }

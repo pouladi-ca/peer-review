@@ -71,6 +71,16 @@ def reflow_doc(review_id: str, doc_id: str, request: Request) -> FileResponse:
     return FileResponse(path, media_type="application/json", headers={"Cache-Control": "private, max-age=0"})
 
 
+@router.get("/reviews/{review_id}/docs/{doc_id}/reflow/pages.json")
+def reflow_pages(review_id: str, doc_id: str, request: Request) -> FileResponse:
+    """Positioned text per page for the browser's page view, extracted here so phones need not."""
+    _check(review_id, doc_id)
+    path = ReflowManager.out_dir(_cfg(request).review_dir(review_id), doc_id) / "pages.json"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="The page text is not ready.")
+    return FileResponse(path, media_type="application/json", headers={"Cache-Control": "private, max-age=0"})
+
+
 @router.get("/reviews/{review_id}/docs/{doc_id}/reflow/figures/{name}")
 def reflow_figure(review_id: str, doc_id: str, name: str, request: Request) -> FileResponse:
     _check(review_id, doc_id)
