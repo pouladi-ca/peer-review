@@ -107,6 +107,12 @@ export function ReadView() {
   const dismissPending = useCallback(() => {
     setPending((cur) => (cur ? null : cur));
   }, []);
+  // On touch screens the toolbar is docked, and dragging a selection handle is a touchmove
+  // too: only a scroll with no live selection dismisses it. A collapsed selection clears the
+  // toolbar through the selectionchange listener.
+  const dismissOnTouchScroll = useCallback(() => {
+    if (window.getSelection()?.isCollapsed ?? true) dismissPending();
+  }, [dismissPending]);
 
   const scrollToBlock = useCallback((blockId: string | undefined, flash = false) => {
     const el = scrollRef.current;
@@ -274,7 +280,7 @@ export function ReadView() {
           <ViewModeToggle />
         </div>
       </div>
-      <div className="read-scroll" ref={scrollRef} onScroll={trackPosition} onWheel={dismissPending} onTouchMove={dismissPending} onMouseUp={() => setTimeout(readSelection, 0)} onKeyUp={(e) => e.shiftKey && readSelection()} onClick={onClickContent} tabIndex={0}>
+      <div className="read-scroll" ref={scrollRef} onScroll={trackPosition} onWheel={dismissPending} onTouchMove={dismissOnTouchScroll} onMouseUp={() => setTimeout(readSelection, 0)} onKeyUp={(e) => e.shiftKey && readSelection()} onClick={onClickContent} tabIndex={0}>
         {!doc ? (
           <div className="viewer-loading">
             {reflow?.status === 'error' ? (

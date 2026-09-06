@@ -109,6 +109,11 @@ export function PdfViewer() {
   }, []);
   // A deliberate scroll dismisses a pending selection; programmatic scrolls do not.
   const dismissPending = useCallback(() => setPending((cur) => (cur ? null : cur)), []);
+  // Dragging a selection handle on a touch screen is a touchmove too; the docked toolbar
+  // must survive it, so only a scroll with no live selection dismisses it.
+  const dismissOnTouchScroll = useCallback(() => {
+    if (window.getSelection()?.isCollapsed ?? true) dismissPending();
+  }, [dismissPending]);
 
   // Restore the last page when a document becomes ready.
   const restoredFor = useRef<string | null>(null);
@@ -351,7 +356,7 @@ export function PdfViewer() {
         ref={scrollRef}
         onScroll={onScroll}
         onWheel={dismissPending}
-        onTouchMove={dismissPending}
+        onTouchMove={dismissOnTouchScroll}
         onMouseUp={onMouseUp}
         onTouchEnd={() => setTimeout(readSelection, 250)}
         onKeyUp={(e) => e.shiftKey && onMouseUp()}

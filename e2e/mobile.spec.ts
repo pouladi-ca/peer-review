@@ -96,6 +96,10 @@ test('a phone gets the tab bar, sheets, and a docked tagging toolbar', async ({ 
   const box = (await toolbar.boundingBox())!;
   const viewport = page.viewportSize()!;
   expect(box.y + box.height).toBeGreaterThan(viewport.height * 0.7);
+  // Dragging a selection handle fires touchmove on the scroller; the docked toolbar must survive it.
+  await page.locator('.read-scroll').dispatchEvent('touchmove');
+  await page.waitForTimeout(150);
+  await expect(toolbar).toBeVisible();
   await page.screenshot({ path: path.join(shots, '16-phone-selection.png') });
 
   // Tagging opens the Notes sheet with the new note.
