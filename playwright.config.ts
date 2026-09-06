@@ -15,6 +15,7 @@ const launchOptions = fs.existsSync(LINUX_CHROME) ? { executablePath: LINUX_CHRO
 const dataDir = process.env.E2E_DATA_DIR ?? mkdtempSync(join(tmpdir(), 'panelist-e2e-'));
 const port = Number(process.env.E2E_PORT ?? 4319);
 export const E2E_PASSWORD = 'e2e-password';
+export const E2E_EMAIL = 'reviewer@example.org';
 
 export default defineConfig({
   testDir: './e2e',
@@ -40,6 +41,7 @@ export default defineConfig({
     timeout: 90_000,
     env: {
       APP_PASSWORD: E2E_PASSWORD,
+      ADMIN_EMAIL: E2E_EMAIL,
       PANELIST_INSECURE_COOKIES: '1',
       DATA_DIR: dataDir,
       STATIC_DIR: resolve(here, 'dist'),

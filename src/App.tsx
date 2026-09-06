@@ -9,11 +9,14 @@ import { ShortcutsHelp } from './components/ShortcutsHelp';
 import { Toast, BusyOverlay } from './components/Overlays';
 import { Celebrate } from './components/Celebrate';
 import { FrameworkEditor } from './components/FrameworkEditor';
+import { AdminPage } from './components/AdminPage';
+import { ChangePassword, PasswordDialogHost } from './components/ChangePassword';
 import { FigureViewerHost } from './components/reader/FigureViewer';
 
 export default function App() {
   const booted = useStore((s) => s.booted);
   const authed = useStore((s) => s.authed);
+  const mustChange = useStore((s) => s.me?.mustChangePassword ?? false);
   const hasReview = useStore((s) => s.review !== null);
   useEffect(() => {
     useStore.getState().boot();
@@ -24,6 +27,13 @@ export default function App() {
 
   if (authed === null) return <div className="boot" />;
   if (authed === false) return <Login />;
+  if (mustChange)
+    return (
+      <>
+        <ChangePassword forced />
+        <Toast />
+      </>
+    );
   if (!booted) return <div className="boot" />;
   return (
     <>
@@ -31,6 +41,8 @@ export default function App() {
       <CommandPalette />
       <ShortcutsHelp />
       <FrameworkEditor />
+      <AdminPage />
+      <PasswordDialogHost />
       <FigureViewerHost />
       <BusyOverlay />
       <Celebrate />

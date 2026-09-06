@@ -1,8 +1,8 @@
-"""Password login, signed session cookies, and login rate limiting."""
+"""Per-user sessions: signed cookies, login rate limiting, and the first-admin bootstrap."""
 
 from __future__ import annotations
 
-import secrets
+import sys
 import threading
 import time
 from collections import deque
@@ -10,10 +10,11 @@ from collections import deque
 from fastapi import HTTPException, Request, Response
 from itsdangerous import BadSignature, URLSafeSerializer
 
+from . import users
 from .config import COOKIE_MAX_AGE, COOKIE_NAME, LOGIN_ATTEMPT_LIMIT, LOGIN_ATTEMPT_WINDOW, Config
 from .db import Database
+from .users import User
 
-SESSION_GENERATION_KEY = "session_generation"
 MAX_TRACKED_IPS = 10_000
 
 
@@ -79,7 +80,11 @@ class RateLimiter:
 
 
 class SessionAuth:
-    """Issues and validates the session cookie."""
+    """Issues and validates the per-user session cookie.
+
+    A token names the user and their session generation; changing the password or
+    signing out everywhere bumps the generation, which invalidates every other device.
+    """
 
     def __init__(self, config: Config, db: Database) -> None:
         self.config = config
@@ -87,33 +92,29 @@ class SessionAuth:
         self.limiter = RateLimiter()
         self._serializer = URLSafeSerializer(config.session_secret, salt="pl-session")
 
-    def generation(self) -> int:
-        return int(self.db.get_setting(SESSION_GENERATION_KEY, "1"))
+    def issue_token(self, user: User) -> str:
+        return self._serializer.dumps({"uid": user.id, "gen": user.generation, "iat": int(time.time())})
 
-    def bump_generation(self) -> int:
-        generation = self.generation() + 1
-        self.db.set_setting(SESSION_GENERATION_KEY, str(generation))
-        return generation
-
-    def password_matches(self, candidate: str) -> bool:
-        return secrets.compare_digest(candidate.encode(), self.config.app_password.encode())
-
-    def issue_token(self) -> str:
-        return self._serializer.dumps({"gen": self.generation(), "iat": int(time.time())})
-
-    def token_is_valid(self, token: str | None) -> bool:
+    def user_for_token(self, token: str | None) -> User | None:
         if not token:
-            return False
+            return None
         try:
             payload = self._serializer.loads(token)
         except BadSignature:
-            return False
-        if not isinstance(payload, dict) or payload.get("gen") != self.generation():
-            return False
+            return None
+        if not isinstance(payload, dict):
+            return None
         issued_at = payload.get("iat")
-        if not isinstance(issued_at, int):
-            return False
-        return 0 <= time.time() - issued_at <= COOKIE_MAX_AGE
+        if not isinstance(issued_at, int) or not 0 <= time.time() - issued_at <= COOKIE_MAX_AGE:
+            return None
+        uid = payload.get("uid")
+        if not isinstance(uid, str):
+            return None
+        with self.db.connect(write=False) as conn:
+            user = users.get(conn, uid)
+        if user is None or user.disabled or user.generation != payload.get("gen"):
+            return None
+        return user
 
     def set_cookie(self, response: Response, token: str) -> None:
         response.set_cookie(
@@ -132,11 +133,46 @@ class SessionAuth:
         )
 
 
+def current_user(request: Request) -> User | None:
+    """The signed-in user, looked up once per request and cached on the request state."""
+    state = request.state
+    if not hasattr(state, "user"):
+        auth: SessionAuth = request.app.state.auth
+        state.user = auth.user_for_token(request.cookies.get(COOKIE_NAME))
+    return state.user
+
+
 def session_is_valid(request: Request) -> bool:
-    auth: SessionAuth = request.app.state.auth
-    return auth.token_is_valid(request.cookies.get(COOKIE_NAME))
+    return current_user(request) is not None
 
 
-def require_session(request: Request) -> None:
-    if not session_is_valid(request):
+def require_session(request: Request) -> User:
+    user = current_user(request)
+    if user is None:
         raise HTTPException(status_code=401, detail="Not signed in")
+    return user
+
+
+def require_admin(request: Request) -> User:
+    user = require_session(request)
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admins only.")
+    return user
+
+
+def bootstrap_admin(config: Config, db: Database) -> None:
+    """Create the first admin from ADMIN_EMAIL and APP_PASSWORD when no user exists yet,
+    and give them everything stored before accounts existed."""
+    with db.connect() as conn:
+        if users.count(conn) > 0:
+            return
+        email = users.normalize_email(config.admin_email)
+        if not email or not config.app_password:
+            sys.stderr.write(
+                "panelist: no user accounts exist yet. Set ADMIN_EMAIL and APP_PASSWORD to create\n"
+                "  the first admin, e.g.\n"
+                "    ADMIN_EMAIL=you@example.org APP_PASSWORD=choose-one uv run uvicorn panelist.app:app\n"
+            )
+            raise SystemExit(1)
+        admin = users.create(conn, email, config.app_password, is_admin=True, must_change=False)
+        users.adopt_orphans(conn, admin.id)

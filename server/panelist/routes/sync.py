@@ -24,8 +24,9 @@ from pydantic import BaseModel, Field
 from ..auth import require_session
 from ..config import MAX_UPLOAD_BYTES, Config
 from ..db import DOC_ID_RE, RECORD_KEY_RE, REVIEW_ID_RE, Database, current_seq, next_seq
+from ..users import User
 
-router = APIRouter(prefix="/api", tags=["sync"], dependencies=[Depends(require_session)])
+router = APIRouter(prefix="/api", tags=["sync"])
 
 MAX_BATCH = 5000
 MAX_RECORD_BYTES = 512 * 1024
@@ -86,16 +87,30 @@ def _encode(data: Any) -> str:
     return raw
 
 
-def _ensure_review(conn: sqlite3.Connection, review_id: str, now_ms: int, seq: int) -> None:
+def _owner_of(conn: sqlite3.Connection, review_id: str) -> str | None:
+    row = conn.execute("SELECT owner_id FROM reviews WHERE id = ?", (review_id,)).fetchone()
+    return row["owner_id"] if row else None
+
+
+def _ensure_review(conn: sqlite3.Connection, review_id: str, now_ms: int, seq: int, owner_id: str) -> None:
+    """Create the review for its owner if it is new; refuse to touch another account's review."""
     conn.execute(
-        "INSERT INTO reviews(id, created_at, updated_at, deleted, server_seq) "
-        "VALUES(?, ?, ?, 0, ?) ON CONFLICT(id) DO NOTHING",
-        (review_id, now_ms, now_ms, seq),
+        "INSERT INTO reviews(id, created_at, updated_at, deleted, server_seq, owner_id) "
+        "VALUES(?, ?, ?, 0, ?, ?) ON CONFLICT(id) DO NOTHING",
+        (review_id, now_ms, now_ms, seq, owner_id),
     )
+    if _owner_of(conn, review_id) != owner_id:
+        raise HTTPException(status_code=403, detail="That review belongs to another account.")
+
+
+def owned_review(conn: sqlite3.Connection, review_id: str, user: User) -> None:
+    """404 unless the review exists and belongs to the user; nobody learns about other people's ids."""
+    if _owner_of(conn, review_id) != user.id:
+        raise HTTPException(status_code=404, detail="No such review")
 
 
 @router.get("/changes")
-def pull(request: Request, since: int = 0) -> dict[str, Any]:
+def pull(request: Request, since: int = 0, user: User = Depends(require_session)) -> dict[str, Any]:
     db = _db(request)
     with db.connect(write=False) as conn:
         seq = current_seq(conn)
@@ -107,7 +122,7 @@ def pull(request: Request, since: int = 0) -> dict[str, Any]:
                 "deleted": bool(r["deleted"]),
             }
             for r in conn.execute(
-                "SELECT * FROM reviews WHERE server_seq > ? ORDER BY server_seq", (since,)
+                "SELECT * FROM reviews WHERE owner_id = ? AND server_seq > ? ORDER BY server_seq", (user.id, since)
             )
         ]
         records = [
@@ -119,7 +134,9 @@ def pull(request: Request, since: int = 0) -> dict[str, Any]:
                 "deleted": bool(r["deleted"]),
             }
             for r in conn.execute(
-                "SELECT * FROM records WHERE server_seq > ? ORDER BY server_seq", (since,)
+                "SELECT records.* FROM records JOIN reviews ON reviews.id = records.review_id "
+                "WHERE reviews.owner_id = ? AND records.server_seq > ? ORDER BY records.server_seq",
+                (user.id, since),
             )
         ]
         account = [
@@ -130,15 +147,15 @@ def pull(request: Request, since: int = 0) -> dict[str, Any]:
                 "deleted": bool(r["deleted"]),
             }
             for r in conn.execute(
-                "SELECT * FROM account_records WHERE server_seq > ? ORDER BY server_seq",
-                (since,),
+                "SELECT * FROM account_records WHERE owner_id = ? AND server_seq > ? ORDER BY server_seq",
+                (user.id, since),
             )
         ]
     return {"seq": seq, "reviews": reviews, "records": records, "account": account}
 
 
 @router.post("/changes")
-def push(body: ChangesIn, request: Request) -> dict[str, Any]:
+def push(body: ChangesIn, request: Request, user: User = Depends(require_session)) -> dict[str, Any]:
     if len(body.records) + len(body.reviews) + len(body.account) > MAX_BATCH:
         raise HTTPException(status_code=413, detail="Too many changes in one batch.")
     db = _db(request)
@@ -146,16 +163,18 @@ def push(body: ChangesIn, request: Request) -> dict[str, Any]:
     with db.connect() as conn:
         for rv in body.reviews:
             _check_review_id(rv.id)
-            row = conn.execute("SELECT updated_at FROM reviews WHERE id = ?", (rv.id,)).fetchone()
+            row = conn.execute("SELECT updated_at, owner_id FROM reviews WHERE id = ?", (rv.id,)).fetchone()
+            if row is not None and row["owner_id"] != user.id:
+                raise HTTPException(status_code=403, detail="That review belongs to another account.")
             if row is not None and row["updated_at"] > rv.updated_at:
                 continue
             seq = next_seq(conn)
             conn.execute(
-                "INSERT INTO reviews(id, created_at, updated_at, deleted, server_seq) "
-                "VALUES(?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
+                "INSERT INTO reviews(id, created_at, updated_at, deleted, server_seq, owner_id) "
+                "VALUES(?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
                 "updated_at = excluded.updated_at, deleted = excluded.deleted, "
                 "server_seq = excluded.server_seq",
-                (rv.id, rv.created_at, rv.updated_at, int(rv.deleted), seq),
+                (rv.id, rv.created_at, rv.updated_at, int(rv.deleted), seq, user.id),
             )
             applied += 1
         for rec in body.records:
@@ -169,7 +188,7 @@ def push(body: ChangesIn, request: Request) -> dict[str, Any]:
             if row is not None and row["updated_at"] > rec.updated_at:
                 continue
             seq = next_seq(conn)
-            _ensure_review(conn, rec.review_id, rec.updated_at, seq)
+            _ensure_review(conn, rec.review_id, rec.updated_at, seq, user.id)
             conn.execute(
                 "INSERT INTO records(review_id, key, data, updated_at, deleted, server_seq) "
                 "VALUES(?, ?, ?, ?, ?, ?) ON CONFLICT(review_id, key) DO UPDATE SET "
@@ -189,17 +208,18 @@ def push(body: ChangesIn, request: Request) -> dict[str, Any]:
             if not RECORD_KEY_RE.match(rec.key):
                 raise HTTPException(status_code=400, detail="Bad record key")
             row = conn.execute(
-                "SELECT updated_at FROM account_records WHERE key = ?", (rec.key,)
+                "SELECT updated_at FROM account_records WHERE owner_id = ? AND key = ?", (user.id, rec.key)
             ).fetchone()
             if row is not None and row["updated_at"] > rec.updated_at:
                 continue
             seq = next_seq(conn)
             conn.execute(
-                "INSERT INTO account_records(key, data, updated_at, deleted, server_seq) "
-                "VALUES(?, ?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET data = excluded.data, "
+                "INSERT INTO account_records(owner_id, key, data, updated_at, deleted, server_seq) "
+                "VALUES(?, ?, ?, ?, ?, ?) ON CONFLICT(owner_id, key) DO UPDATE SET data = excluded.data, "
                 "updated_at = excluded.updated_at, deleted = excluded.deleted, "
                 "server_seq = excluded.server_seq",
                 (
+                    user.id,
                     rec.key,
                     _encode(rec.data) if not rec.deleted else "null",
                     rec.updated_at,
@@ -213,7 +233,7 @@ def push(body: ChangesIn, request: Request) -> dict[str, Any]:
 
 
 @router.delete("/reviews/{review_id}")
-def delete_review(review_id: str, request: Request) -> dict[str, Any]:
+def delete_review(review_id: str, request: Request, user: User = Depends(require_session)) -> dict[str, Any]:
     """Tombstone a review and remove its files. Records are kept as tombstones."""
     _check_review_id(review_id)
     db, cfg = _db(request), _cfg(request)
@@ -221,12 +241,11 @@ def delete_review(review_id: str, request: Request) -> dict[str, Any]:
 
     now_ms = int(time.time() * 1000)
     with db.connect() as conn:
+        owned_review(conn, review_id, user)
         seq = next_seq(conn)
         conn.execute(
-            "INSERT INTO reviews(id, created_at, updated_at, deleted, server_seq) "
-            "VALUES(?, ?, ?, 1, ?) ON CONFLICT(id) DO UPDATE SET deleted = 1, "
-            "updated_at = excluded.updated_at, server_seq = excluded.server_seq",
-            (review_id, now_ms, now_ms, seq),
+            "UPDATE reviews SET deleted = 1, updated_at = ?, server_seq = ? WHERE id = ?",
+            (now_ms, seq, review_id),
         )
         conn.execute("DELETE FROM files WHERE review_id = ?", (review_id,))
     shutil.rmtree(cfg.review_dir(review_id), ignore_errors=True)
@@ -234,11 +253,16 @@ def delete_review(review_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.put("/reviews/{review_id}/files/{doc_id}")
-async def upload_file(review_id: str, doc_id: str, request: Request) -> dict[str, Any]:
+async def upload_file(review_id: str, doc_id: str, request: Request, user: User = Depends(require_session)) -> dict[str, Any]:
     """Store a PDF. The body is the raw file (``Content-Type: application/pdf``)."""
     _check_review_id(review_id)
     _check_doc_id(doc_id)
     cfg, db = _cfg(request), _db(request)
+    import time
+
+    # Claim the review for this account before anything touches the disk.
+    with db.connect() as conn:
+        _ensure_review(conn, review_id, int(time.time() * 1000), next_seq(conn), user.id)
     target_dir = cfg.review_dir(review_id) / "files"
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"{doc_id}.pdf"
@@ -265,11 +289,9 @@ async def upload_file(review_id: str, doc_id: str, request: Request) -> dict[str
         tmp.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Empty upload.")
     tmp.replace(target)
-    import time
 
     with db.connect() as conn:
-        seq = next_seq(conn)
-        _ensure_review(conn, review_id, int(time.time() * 1000), seq)
+        owned_review(conn, review_id, user)
         conn.execute(
             "INSERT INTO files(review_id, doc_id, size, sha256, uploaded_at) VALUES(?, ?, ?, ?, ?) "
             "ON CONFLICT(review_id, doc_id) DO UPDATE SET size = excluded.size, "
@@ -287,10 +309,12 @@ async def upload_file(review_id: str, doc_id: str, request: Request) -> dict[str
 
 
 @router.get("/reviews/{review_id}/files/{doc_id}")
-def download_file(review_id: str, doc_id: str, request: Request) -> FileResponse:
+def download_file(review_id: str, doc_id: str, request: Request, user: User = Depends(require_session)) -> FileResponse:
     _check_review_id(review_id)
     _check_doc_id(doc_id)
     cfg = _cfg(request)
+    with _db(request).connect(write=False) as conn:
+        owned_review(conn, review_id, user)
     path = cfg.review_dir(review_id) / "files" / f"{doc_id}.pdf"
     if not path.is_file():
         raise HTTPException(status_code=404, detail="No such file")
@@ -298,9 +322,11 @@ def download_file(review_id: str, doc_id: str, request: Request) -> FileResponse
 
 
 @router.head("/reviews/{review_id}/files/{doc_id}")
-def file_exists(review_id: str, doc_id: str, request: Request) -> dict[str, Any]:
+def file_exists(review_id: str, doc_id: str, request: Request, user: User = Depends(require_session)) -> dict[str, Any]:
     _check_review_id(review_id)
     _check_doc_id(doc_id)
+    with _db(request).connect(write=False) as conn:
+        owned_review(conn, review_id, user)
     path = _cfg(request).review_dir(review_id) / "files" / f"{doc_id}.pdf"
     if not path.is_file():
         raise HTTPException(status_code=404, detail="No such file")

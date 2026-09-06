@@ -12,8 +12,15 @@ test('the phone library is compact and never overflows', async ({ page }) => {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   await expect(page.getByRole('button', { name: 'Add a proposal PDF' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  const account = page.getByRole('button', { name: /^Account:/ });
+  await expect(account).toBeVisible();
   await page.screenshot({ path: path.join(shots, '19-phone-library.png') });
+  await account.click();
+  await expect(page.getByRole('menuitem', { name: 'Sign out of this device' })).toBeVisible();
+  const menu = (await page.locator('.account-pop').boundingBox())!;
+  expect(menu.x).toBeGreaterThanOrEqual(0);
+  expect(menu.x + menu.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await page.keyboard.press('Escape');
 });
 
 test('the view toggle stays within reach and switches both ways on a phone', async ({ page }) => {

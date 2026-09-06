@@ -11,10 +11,11 @@ from pydantic import BaseModel, Field
 
 from ..auth import require_session
 from ..config import Config
-from ..db import DOC_ID_RE, REVIEW_ID_RE
+from ..db import DOC_ID_RE, REVIEW_ID_RE, Database
 from ..reflow import ReflowManager
+from ..users import User
 
-router = APIRouter(prefix="/api", tags=["reflow"], dependencies=[Depends(require_session)])
+router = APIRouter(prefix="/api", tags=["reflow"])
 
 FIGURE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}\.(png|jpg)$")
 
@@ -32,9 +33,15 @@ def _mgr(request: Request) -> ReflowManager:
     return request.app.state.reflow
 
 
-def _check(review_id: str, doc_id: str) -> None:
+def _check(review_id: str, doc_id: str, request: Request | None = None, user: User | None = None) -> None:
     if not REVIEW_ID_RE.match(review_id) or not DOC_ID_RE.match(doc_id):
         raise HTTPException(status_code=404, detail="No such document")
+    if request is not None and user is not None:
+        db: Database = request.app.state.db
+        with db.connect(write=False) as conn:
+            row = conn.execute("SELECT owner_id FROM reviews WHERE id = ?", (review_id,)).fetchone()
+        if row is None or row["owner_id"] != user.id:
+            raise HTTPException(status_code=404, detail="No such document")
 
 
 def start_reflow(request: Request, review_id: str, doc_id: str, pages: list[int] | None = None, force: bool = False) -> dict[str, Any]:
@@ -51,20 +58,25 @@ def start_reflow(request: Request, review_id: str, doc_id: str, pages: list[int]
 
 
 @router.post("/reviews/{review_id}/docs/{doc_id}/reflow")
-def reflow_start(review_id: str, doc_id: str, body: ReflowBody, request: Request) -> dict[str, Any]:
-    _check(review_id, doc_id)
+def reflow_start(review_id: str, doc_id: str, body: ReflowBody, request: Request, user: User = Depends(require_session)) -> dict[str, Any]:
+    _check(review_id, doc_id, request, user)
     return start_reflow(request, review_id, doc_id, body.pages, body.force)
 
 
 @router.get("/reviews/{review_id}/docs/{doc_id}/reflow")
-def reflow_status(review_id: str, doc_id: str, request: Request) -> dict[str, Any]:
-    _check(review_id, doc_id)
+def reflow_status(review_id: str, doc_id: str, request: Request, user: User = Depends(require_session)) -> dict[str, Any]:
+    # A review the server has not seen yet (its PDF is still uploading) and one that belongs
+    # to someone else look the same: nothing to report.
+    try:
+        _check(review_id, doc_id, request, user)
+    except HTTPException:
+        return {"status": "none"}
     return _mgr(request).status(_cfg(request).review_dir(review_id), review_id, doc_id)
 
 
 @router.get("/reviews/{review_id}/docs/{doc_id}/reflow/doc.json")
-def reflow_doc(review_id: str, doc_id: str, request: Request) -> FileResponse:
-    _check(review_id, doc_id)
+def reflow_doc(review_id: str, doc_id: str, request: Request, user: User = Depends(require_session)) -> FileResponse:
+    _check(review_id, doc_id, request, user)
     path = ReflowManager.out_dir(_cfg(request).review_dir(review_id), doc_id) / "doc.json"
     if not path.is_file():
         raise HTTPException(status_code=404, detail="The reading view is not ready.")
@@ -72,9 +84,9 @@ def reflow_doc(review_id: str, doc_id: str, request: Request) -> FileResponse:
 
 
 @router.get("/reviews/{review_id}/docs/{doc_id}/reflow/pages.json")
-def reflow_pages(review_id: str, doc_id: str, request: Request) -> FileResponse:
+def reflow_pages(review_id: str, doc_id: str, request: Request, user: User = Depends(require_session)) -> FileResponse:
     """Positioned text per page for the browser's page view, extracted here so phones need not."""
-    _check(review_id, doc_id)
+    _check(review_id, doc_id, request, user)
     path = ReflowManager.out_dir(_cfg(request).review_dir(review_id), doc_id) / "pages.json"
     if not path.is_file():
         raise HTTPException(status_code=404, detail="The page text is not ready.")
@@ -82,8 +94,8 @@ def reflow_pages(review_id: str, doc_id: str, request: Request) -> FileResponse:
 
 
 @router.get("/reviews/{review_id}/docs/{doc_id}/reflow/figures/{name}")
-def reflow_figure(review_id: str, doc_id: str, name: str, request: Request) -> FileResponse:
-    _check(review_id, doc_id)
+def reflow_figure(review_id: str, doc_id: str, name: str, request: Request, user: User = Depends(require_session)) -> FileResponse:
+    _check(review_id, doc_id, request, user)
     if not FIGURE_NAME_RE.match(name):
         raise HTTPException(status_code=404, detail="No such figure")
     path = ReflowManager.out_dir(_cfg(request).review_dir(review_id), doc_id) / "figures" / name

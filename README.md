@@ -118,7 +118,7 @@ Vite dev server, which proxies `/api` to it.
 
 ```bash
 npm install
-npm run api          # API on :8000 (password "panelist-dev" unless APP_PASSWORD is set)
+npm run api          # API on :8000; first run seeds the admin dev@panelist.local / panelist-dev
 npm run dev          # app on :5173
 npm run build        # typecheck and build the SPA
 npm test             # unit tests (Vitest)
@@ -151,12 +151,23 @@ on the first request.
 
 ```bash
 fly launch --no-deploy                                   # once
-fly secrets set APP_PASSWORD='…' SESSION_SECRET="$(openssl rand -base64 48)"
+fly secrets set ADMIN_EMAIL='you@example.org' APP_PASSWORD='…' SESSION_SECRET="$(openssl rand -base64 48)"
 fly deploy --remote-only
 ```
 
-Any host that runs the container with `APP_PASSWORD` set and a volume mounted at
+Any host that runs the container with those variables set and a volume mounted at
 `DATA_DIR` works the same way.
+
+### Accounts
+
+Every reviewer has their own account, identified by email, and sees only their own
+reviews. `ADMIN_EMAIL` and `APP_PASSWORD` are read once, when the database has no
+users yet, to create the first admin; after that passwords live in the database and
+changing the variables does nothing. Admins add people from the account menu
+("Manage people"): a new account gets a temporary password to hand over out of band,
+which must be replaced at first sign-in. Admins can also reset a password (which
+signs that person out everywhere), disable or delete an account, and promote another
+admin. There is no self-service reset by email; ask an admin.
 
 ## License
 

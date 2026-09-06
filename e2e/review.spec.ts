@@ -19,6 +19,7 @@ async function startWithSample(page: Page) {
 test('the app is gated behind login', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByLabel('Password')).toBeVisible();
+  await page.getByLabel('Email').fill('reviewer@example.org');
   await page.getByLabel('Password').fill('wrong');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('alert')).toContainText(/not right/i);

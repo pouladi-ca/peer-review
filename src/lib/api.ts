@@ -78,17 +78,39 @@ export interface ChangesIn {
   account?: AccountRecordOut[];
 }
 
+/** The signed-in account, as the server describes it. */
+export interface Me {
+  id: string;
+  email: string;
+  isAdmin: boolean;
+  mustChangePassword: boolean;
+}
+
+export interface AdminUser extends Me {
+  disabled: boolean;
+  createdAt: number;
+  lastLoginAt: number | null;
+}
+
 export const api = {
-  /** True when a valid session cookie is present. Throws on network failure. */
-  async session(): Promise<boolean> {
+  /** The signed-in account, or null when the session cookie is missing or stale. Throws on network failure. */
+  async session(): Promise<Me | null> {
     const res = await fetch('/api/me', { credentials: 'same-origin' });
-    if (res.status === 401) return false;
+    if (res.status === 401) return null;
     if (!res.ok) throw new ApiError(res.status, 'Server error');
-    return true;
+    return (await res.json()) as Me;
   },
-  login: (password: string) => request<{ ok: boolean }>('POST', '/api/login', { password }),
+  login: (email: string, password: string) => request<Me>('POST', '/api/login', { email, password }),
   logout: () => request<{ ok: boolean }>('POST', '/api/logout', {}),
   logoutEverywhere: () => request<{ ok: boolean }>('POST', '/api/logout-everywhere', {}),
+  changePassword: (current: string, next: string) => request<Me>('POST', '/api/password', { current, new: next }),
+  admin: {
+    users: () => request<{ users: AdminUser[] }>('GET', '/api/admin/users'),
+    create: (email: string, isAdmin = false) => request<{ user: AdminUser; temporaryPassword: string }>('POST', '/api/admin/users', { email, isAdmin }),
+    reset: (id: string) => request<{ user: AdminUser; temporaryPassword: string }>('POST', `/api/admin/users/${encodeURIComponent(id)}/reset`, {}),
+    update: (id: string, patch: { disabled?: boolean; isAdmin?: boolean }) => request<{ user: AdminUser }>('PATCH', `/api/admin/users/${encodeURIComponent(id)}`, patch),
+    remove: (id: string) => request<{ ok: boolean; reviewsRemoved: number }>('DELETE', `/api/admin/users/${encodeURIComponent(id)}`),
+  },
   pull: (since: number) => request<Changes>('GET', `/api/changes?since=${since}`),
   push: (changes: ChangesIn) => request<{ ok: boolean; applied: number; seq: number }>('POST', '/api/changes', changes),
   deleteReview: (id: string) => request<{ ok: boolean }>('DELETE', `/api/reviews/${encodeURIComponent(id)}`),

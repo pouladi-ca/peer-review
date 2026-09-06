@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAllFrameworks, useFramework } from '../hooks/useFramework';
-import { ArrowLeft, Sun, Moon, Monitor, Command, Keyboard, Scan, Clock, Check, Loader2, Cloud, CloudOff, RefreshCw, LogOut, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Sun, Moon, Monitor, Command, Keyboard, Scan, Clock, Check, Loader2, Cloud, CloudOff, RefreshCw, LogOut, MoreHorizontal, SlidersHorizontal, KeyRound, Users } from 'lucide-react';
 import { useStore } from '../lib/store';
 
 import { computeProgress } from '../lib/progress';
@@ -14,6 +14,7 @@ export function TopBar() {
   const focusMode = useStore((s) => s.focusMode);
   const saveState = useStore((s) => s.saveState);
   const sync = useStore((s) => s.sync);
+  const isAdmin = useStore((s) => s.me?.isAdmin ?? false);
   const update = useStore((s) => s.update);
   const [showProgress, setShowProgress] = useState(false);
   const [showMore, setShowMore] = useState(false);
@@ -148,6 +149,14 @@ export function TopBar() {
                 <button type="button" className="more-item" role="menuitem" onClick={() => (useStore.getState().syncNow(), setShowMore(false))}>
                   <RefreshCw size={14} /> Sync now
                 </button>
+                <button type="button" className="more-item" role="menuitem" onClick={() => (useStore.getState().openPasswordDialog(), setShowMore(false))}>
+                  <KeyRound size={14} /> Change password
+                </button>
+                {isAdmin && (
+                  <button type="button" className="more-item" role="menuitem" onClick={() => (useStore.getState().openAdmin(), setShowMore(false))}>
+                    <Users size={14} /> Manage people
+                  </button>
+                )}
                 <button type="button" className="more-item is-danger" role="menuitem" onClick={() => useStore.getState().signOut()}>
                   <LogOut size={14} /> Sign out of this device
                 </button>

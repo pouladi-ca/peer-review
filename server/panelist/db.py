@@ -17,13 +17,27 @@ from contextlib import contextmanager
 from pathlib import Path
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    is_admin INTEGER NOT NULL DEFAULT 0,
+    disabled INTEGER NOT NULL DEFAULT 0,
+    must_change INTEGER NOT NULL DEFAULT 0,
+    generation INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    last_login_at INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS reviews (
     id TEXT PRIMARY KEY,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     deleted INTEGER NOT NULL DEFAULT 0,
-    server_seq INTEGER NOT NULL
+    server_seq INTEGER NOT NULL,
+    owner_id TEXT
 );
+CREATE INDEX IF NOT EXISTS reviews_by_owner ON reviews(owner_id);
 
 CREATE TABLE IF NOT EXISTS records (
     review_id TEXT NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
@@ -37,11 +51,13 @@ CREATE TABLE IF NOT EXISTS records (
 CREATE INDEX IF NOT EXISTS records_by_seq ON records(server_seq);
 
 CREATE TABLE IF NOT EXISTS account_records (
-    key TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    key TEXT NOT NULL,
     data TEXT NOT NULL,
     updated_at INTEGER NOT NULL,
     deleted INTEGER NOT NULL DEFAULT 0,
-    server_seq INTEGER NOT NULL
+    server_seq INTEGER NOT NULL,
+    PRIMARY KEY (owner_id, key)
 );
 CREATE INDEX IF NOT EXISTS account_by_seq ON account_records(server_seq);
 
@@ -75,6 +91,7 @@ class Database:
         conn = sqlite3.connect(self.path, timeout=15, isolation_level=None)
         try:
             conn.execute("PRAGMA journal_mode = WAL")
+            _migrate_to_accounts(conn)
             conn.executescript(SCHEMA)
         finally:
             conn.close()
@@ -107,6 +124,44 @@ class Database:
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 (key, value),
             )
+
+
+def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _migrate_to_accounts(conn: sqlite3.Connection) -> None:
+    """Bring a database from before user accounts up to the owned shape.
+
+    Reviews gain an owner column; account records get an owner in their primary key. Rows
+    are left with an empty owner and adopted by the first admin at bootstrap.
+    """
+    if "reviews" in _tables(conn) and "owner_id" not in _columns(conn, "reviews"):
+        conn.execute("ALTER TABLE reviews ADD COLUMN owner_id TEXT")
+    if "account_records" in _tables(conn) and "owner_id" not in _columns(conn, "account_records"):
+        conn.executescript(
+            """
+            BEGIN;
+            ALTER TABLE account_records RENAME TO account_records_old;
+            CREATE TABLE account_records (
+                owner_id TEXT NOT NULL,
+                key TEXT NOT NULL,
+                data TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted INTEGER NOT NULL DEFAULT 0,
+                server_seq INTEGER NOT NULL,
+                PRIMARY KEY (owner_id, key)
+            );
+            INSERT INTO account_records(owner_id, key, data, updated_at, deleted, server_seq)
+                SELECT '', key, data, updated_at, deleted, server_seq FROM account_records_old;
+            DROP TABLE account_records_old;
+            COMMIT;
+            """
+        )
+
+
+def _tables(conn: sqlite3.Connection) -> set[str]:
+    return {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
 
 
 def next_seq(conn: sqlite3.Connection) -> int:

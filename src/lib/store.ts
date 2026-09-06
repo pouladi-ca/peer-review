@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { produce } from 'immer';
 import { nanoid } from 'nanoid';
 import { db } from './db';
-import { api, onUnauthorized } from './api';
+import { api, onUnauthorized, type Me } from './api';
 import { SyncEngine, deviceId, type SyncStatus } from './sync/engine';
 import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef } from './frameworks';
 import { getSetting, setSetting } from './db';
@@ -109,6 +109,10 @@ interface State {
   frameworkEditor: { open: boolean; id?: string };
   /** null while the session is being checked, then whether the reviewer is signed in. */
   authed: boolean | null;
+  /** The signed-in account; null until known. */
+  me: Me | null;
+  adminOpen: boolean;
+  passwordDialogOpen: boolean;
   sync: SyncStatus;
   /** Phones: which sheet is open over the document. */
   sheet: 'nav' | 'panel' | null;
@@ -152,12 +156,17 @@ interface State {
   deleteCustomFramework(id: string): Promise<boolean>;
   openFrameworkEditor(id?: string): void;
   closeFrameworkEditor(): void;
-  /** After a successful login: load data and start syncing. */
+  /** After a successful login: remember who is signed in, load data, and start syncing. */
   setSheet(sheet: 'nav' | 'panel' | null): void;
   /** Tell the reviewer where a freshly opened review resumed, once per opening. */
   announceResume(docId: string, page: number, section?: string): void;
-  signedIn(): Promise<void>;
+  signedIn(me: Me): Promise<void>;
   signOut(everywhere?: boolean): Promise<void>;
+  setMe(me: Me): void;
+  openAdmin(): void;
+  closeAdmin(): void;
+  openPasswordDialog(): void;
+  closePasswordDialog(): void;
   syncNow(): Promise<void>;
 }
 
@@ -232,6 +241,11 @@ const announced = new Set<string>();
 async function loadReviewList(set: (partial: Partial<State>) => void): Promise<void> {
   const reviews = await db.reviews.orderBy('updatedAt').reverse().toArray();
   set({ reviews });
+}
+
+/** Wipe every locally cached review, file, and sync state on this device. */
+async function clearLocalData(): Promise<void> {
+  await Promise.all([db.reviews.clear(), db.files.clear(), db.outbox.clear(), db.syncstate.clear(), db.settings.delete('sync.cursor'), db.settings.delete('customFrameworks'), db.settings.delete('auth.email')]);
 }
 
 export const useStore = create<State>((set, get) => {
@@ -466,6 +480,9 @@ export const useStore = create<State>((set, get) => {
     frameworksVersion: 0,
     frameworkEditor: { open: false },
     authed: null,
+    me: null,
+    adminOpen: false,
+    passwordDialogOpen: false,
     sync: { state: 'idle', pending: 0 },
     sheet: null,
 
@@ -477,34 +494,42 @@ export const useStore = create<State>((set, get) => {
           set({ authed: false, review: null, docs: {}, activeDocId: null });
         }
       });
-      let authed: boolean;
+      let me: Me | null;
       try {
-        authed = await api.session();
+        me = await api.session();
       } catch {
         // Server unreachable: allow the cached copy only on a device that has signed in before.
-        let remembered = false;
+        me = null;
         try {
-          remembered = localStorage.getItem('panelist.authed') === '1';
+          const raw = localStorage.getItem('panelist.me');
+          if (raw) me = JSON.parse(raw) as Me;
         } catch {
           /* ignore */
         }
-        authed = remembered;
-        if (remembered) set({ sync: { state: 'offline', pending: 0, message: 'Server unreachable' } });
+        if (me) set({ sync: { state: 'offline', pending: 0, message: 'Server unreachable' } });
       }
-      if (!authed) {
+      if (!me) {
         set({ authed: false, booted: true });
         return;
       }
-      await get().signedIn();
+      await get().signedIn(me);
     },
 
-    async signedIn() {
+    async signedIn(me) {
       try {
-        localStorage.setItem('panelist.authed', '1');
+        localStorage.setItem('panelist.me', JSON.stringify(me));
       } catch {
         /* ignore */
       }
-      set({ authed: true });
+      set({ authed: true, me });
+      try {
+        // A different account on this device: its predecessor's data must not linger.
+        const previous = await getSetting<string>('auth.email', '');
+        if (previous && previous !== me.email) await clearLocalData();
+        await setSetting('auth.email', me.email);
+      } catch {
+        /* storage unavailable; handled below */
+      }
       try {
         const defs = await getSetting<CustomFrameworkDef[]>('customFrameworks', []);
         setCustomFrameworks(defs);
@@ -529,14 +554,15 @@ export const useStore = create<State>((set, get) => {
       engine?.stop();
       engine = null;
       try {
+        localStorage.removeItem('panelist.me');
         localStorage.removeItem('panelist.authed');
       } catch {
         /* ignore */
       }
       // Nothing confidential stays on a signed-out device; sync restores it after sign-in.
-      await Promise.all([db.reviews.clear(), db.files.clear(), db.outbox.clear(), db.syncstate.clear(), db.settings.delete('sync.cursor')]);
+      await clearLocalData();
       for (const d of Object.values(get().docs)) destroyPdf(d.pdf);
-      set({ authed: false, review: null, docs: {}, activeDocId: null, reviews: [], selectedNoteId: null, editingNoteId: null, focusMode: false });
+      set({ authed: false, me: null, adminOpen: false, passwordDialogOpen: false, review: null, docs: {}, activeDocId: null, reviews: [], selectedNoteId: null, editingNoteId: null, focusMode: false });
     },
 
     async syncNow() {
@@ -915,6 +941,18 @@ export const useStore = create<State>((set, get) => {
       return true;
     },
 
+    setMe: (me) => {
+      try {
+        localStorage.setItem('panelist.me', JSON.stringify(me));
+      } catch {
+        /* ignore */
+      }
+      set({ me });
+    },
+    openAdmin: () => set({ adminOpen: true, paletteOpen: false, helpOpen: false }),
+    closeAdmin: () => set({ adminOpen: false }),
+    openPasswordDialog: () => set({ passwordDialogOpen: true, paletteOpen: false, helpOpen: false }),
+    closePasswordDialog: () => set({ passwordDialogOpen: false }),
     openFrameworkEditor: (id) => set({ frameworkEditor: { open: true, id }, paletteOpen: false, helpOpen: false }),
     closeFrameworkEditor: () => set({ frameworkEditor: { open: false } }),
   };

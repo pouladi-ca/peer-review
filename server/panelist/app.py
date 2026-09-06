@@ -15,10 +15,11 @@ from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from .auth import SessionAuth, session_is_valid
+from .auth import SessionAuth, bootstrap_admin, session_is_valid
 from .config import MAX_BODY_BYTES, MAX_UPLOAD_BYTES, Config, load_config
 from .db import Database
 from .reflow import ReflowManager
+from .routes import admin as admin_routes
 from .routes import auth as auth_routes
 from .routes import reflow as reflow_routes
 from .routes import sync as sync_routes
@@ -186,6 +187,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.state.config = cfg
     app.state.db = Database(cfg.db_path)
     app.state.auth = SessionAuth(cfg, app.state.db)
+    bootstrap_admin(cfg, app.state.db)
     app.state.reflow = ReflowManager()
 
     @app.exception_handler(StarletteHTTPException)
@@ -215,6 +217,7 @@ def create_app(config: Config | None = None) -> FastAPI:
         return {"ok": True}
 
     app.include_router(auth_routes.router)
+    app.include_router(admin_routes.router)
     app.include_router(sync_routes.router)
     app.include_router(reflow_routes.router)
     _install_static(app, cfg.static_dir)

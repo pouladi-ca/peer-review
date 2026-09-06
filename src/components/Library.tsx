@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
-import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw, Plus } from 'lucide-react';
+import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw, Plus, ChevronDown, KeyRound, Users, UserRound } from 'lucide-react';
 import { useIsPhone } from '../hooks/useMedia';
 import { useStore } from '../lib/store';
 import { getFramework } from '../lib/frameworks';
@@ -76,15 +76,13 @@ export function Library() {
         <Wordmark size="m" />
         <span className="library-tag">
           <span className="library-tagline">
-            <Lock size={12} /> Password protected, synced across your devices
+            <Lock size={12} /> Private to you, synced across your devices
           </span>
           <span className={`sync-state sync-${sync.state}`} title={sync.message ?? (sync.pending ? `${sync.pending} pending` : 'Synced')}>
             {sync.state === 'syncing' ? <RefreshCw size={13} className="spin" /> : sync.state === 'offline' || sync.state === 'error' ? <CloudOff size={13} /> : <Cloud size={13} />}
             <span>{sync.state === 'syncing' ? 'Syncing' : sync.state === 'offline' ? 'Offline' : sync.state === 'error' ? 'Sync error' : sync.pending ? `${sync.pending} pending` : 'Synced'}</span>
           </span>
-          <button type="button" className="btn btn-ghost btn-s signout-btn" onClick={() => useStore.getState().signOut()} title="Sign out of this device" aria-label="Sign out">
-            <LogOut size={14} /> <span>Sign out</span>
-          </button>
+          <AccountMenu />
         </span>
       </header>
 
@@ -242,6 +240,50 @@ export function Library() {
         </section>
       </main>
       <footer className="library-foot">Applications are confidential. Panelist keeps them on your own password-protected server and syncs to every device you sign in on.</footer>
+    </div>
+  );
+}
+
+/** Who is signed in, with the account actions: password, people (admins), sign out. */
+function AccountMenu() {
+  const me = useStore((s) => s.me);
+  const [open, setOpen] = useState(false);
+  const act = (fn: () => void) => () => {
+    setOpen(false);
+    fn();
+  };
+  return (
+    <div className="account-wrap">
+      <button type="button" className="btn btn-ghost btn-s account-btn" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="menu" aria-label={`Account: ${me?.email ?? ''}`} title={me?.email}>
+        <UserRound size={14} />
+        <span className="account-email">{me?.email ?? 'Account'}</span>
+        <ChevronDown size={13} />
+      </button>
+      {open && (
+        <>
+          <div className="more-scrim" onClick={() => setOpen(false)} />
+          <div className="popover more-pop account-pop" role="menu">
+            <div className="account-who">
+              {me?.email}
+              {me?.isAdmin && <span className="chip chip-quiet">admin</span>}
+            </div>
+            <button type="button" className="more-item" role="menuitem" onClick={act(() => useStore.getState().openPasswordDialog())}>
+              <KeyRound size={14} /> Change password
+            </button>
+            {me?.isAdmin && (
+              <button type="button" className="more-item" role="menuitem" onClick={act(() => useStore.getState().openAdmin())}>
+                <Users size={14} /> Manage people
+              </button>
+            )}
+            <button type="button" className="more-item" role="menuitem" onClick={act(() => useStore.getState().signOut())}>
+              <LogOut size={14} /> Sign out of this device
+            </button>
+            <button type="button" className="more-item is-danger" role="menuitem" onClick={act(() => useStore.getState().signOut(true))} title="Ends the session on every device, including this one">
+              <LogOut size={14} /> Sign out everywhere
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

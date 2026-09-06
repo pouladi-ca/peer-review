@@ -21,6 +21,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 @dataclass(frozen=True, slots=True)
 class Config:
+    """``admin_email`` and ``app_password`` only seed the first admin account when the
+    database has no users yet; after that, passwords live in the database."""
+
+    admin_email: str
     app_password: str
     session_secret: bytes
     data_dir: Path
@@ -68,13 +72,7 @@ def _load_session_secret(data_dir: Path) -> bytes:
 
 def load_config() -> Config:
     password = os.environ.get("APP_PASSWORD", "")
-    if not password:
-        sys.stderr.write(
-            "panelist: APP_PASSWORD is not set.\n"
-            "  Set it before starting the server, e.g.\n"
-            "    APP_PASSWORD=dev uv run uvicorn panelist.app:app --port 8000\n"
-        )
-        raise SystemExit(1)
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
     data_dir = Path(os.environ.get("DATA_DIR", "./data")).expanduser().resolve()
     try:
         data_dir.mkdir(parents=True, exist_ok=True)
@@ -82,6 +80,7 @@ def load_config() -> Config:
         sys.stderr.write(f"panelist: cannot use DATA_DIR {data_dir}: {exc}\n")
         raise SystemExit(1) from exc
     return Config(
+        admin_email=admin_email,
         app_password=password,
         session_secret=_load_session_secret(data_dir),
         data_dir=data_dir,
