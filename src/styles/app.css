@@ -2751,7 +2751,7 @@ button.chip:hover {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
 }
 .fw-side {
   border-right: 1px solid var(--border);
@@ -4009,4 +4009,48 @@ mark.rhl.has-comment::after {
   .account-email {
     display: none;
   }
+}
+
+/* ---------- framework menu preferences ---------- */
+.fw-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.fw-menu-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 0;
+  border-radius: var(--radius-s);
+  font-size: 12.5px;
+}
+.fw-menu-row:hover {
+  background: var(--surface-2);
+}
+.fw-menu-row.is-hidden .fw-menu-name {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+.fw-menu-row.is-pinned .fw-menu-name {
+  font-weight: 600;
+}
+.fw-menu-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+.fw-menu-btn {
+  color: var(--muted);
+}
+.fw-menu-btn.is-on {
+  color: var(--accent-ink);
+}
+.fw-menu-btn:disabled {
+  opacity: 0.35;
 }

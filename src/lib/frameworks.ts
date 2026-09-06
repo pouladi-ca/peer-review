@@ -1447,3 +1447,29 @@ export function detectFramework(text: string): string | undefined {
   if (/\bNIH\b|Specific Aims/i.test(t)) return 'nih-2025';
   return undefined;
 }
+
+/* ---------- per-reviewer menu preferences ---------- */
+
+/** Which frameworks a reviewer pins, hides, and uses by default. Synced as an account record. */
+export interface FrameworkPrefs {
+  pinned: string[];
+  hidden: string[];
+  /** Preselected for new reviews instead of detecting from the PDF. */
+  defaultId?: string;
+}
+
+export const EMPTY_PREFS: FrameworkPrefs = { pinned: [], hidden: [] };
+
+/**
+ * Order frameworks for a menu: pinned first in pin order, then the rest, hidden ones left
+ * out. `keepId` is always included so a review's current framework never vanishes from
+ * the menu that shows it.
+ */
+export function arrangeFrameworks(all: Framework[], prefs: FrameworkPrefs, keepId?: string): { pinned: Framework[]; others: Framework[]; hiddenCount: number } {
+  const byId = new Map(all.map((f) => [f.id, f] as const));
+  const visible = (f: Framework) => !prefs.hidden.includes(f.id) || f.id === keepId;
+  const pinned = prefs.pinned.map((id) => byId.get(id)).filter((f): f is Framework => !!f && visible(f));
+  const pinnedIds = new Set(pinned.map((f) => f.id));
+  const others = all.filter((f) => !pinnedIds.has(f.id) && visible(f));
+  return { pinned, others, hiddenCount: all.length - pinned.length - others.length };
+}

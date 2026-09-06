@@ -1,9 +1,9 @@
-import { useCallback, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw, Plus, ChevronDown, KeyRound, Users, UserRound } from 'lucide-react';
 import { useIsPhone } from '../hooks/useMedia';
 import { useStore } from '../lib/store';
 import { getFramework } from '../lib/frameworks';
-import { useAllFrameworks } from '../hooks/useFramework';
+import { FrameworkOptions } from './FrameworkOptions';
 import { computeProgress } from '../lib/progress';
 import { formatRelative, plural } from '../lib/format';
 import { parseBackup } from '../lib/export/backup';
@@ -20,8 +20,12 @@ export function Library() {
   const notify = useStore((s) => s.notify);
   const sync = useStore((s) => s.sync);
   const isPhone = useIsPhone();
-  const [frameworkId, setFrameworkId] = useState<string>('auto');
-  const frameworks = useAllFrameworks();
+  const defaultFrameworkId = useStore((s) => s.frameworkPrefs.defaultId);
+  const [frameworkId, setFrameworkId] = useState<string>(defaultFrameworkId ?? 'auto');
+  // The reviewer's default applies to new reviews; it can change while the library is open.
+  useEffect(() => {
+    setFrameworkId(defaultFrameworkId ?? 'auto');
+  }, [defaultFrameworkId]);
   const [dragging, setDragging] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -149,22 +153,7 @@ export function Library() {
                 }}
               >
                 <option value="auto">Detect from the PDF</option>
-                <optgroup label="Built in">
-                  {frameworks.filter((f) => !f.custom).map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </optgroup>
-                {frameworks.some((f) => f.custom) && (
-                  <optgroup label="Yours">
-                    {frameworks.filter((f) => f.custom).map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
+                <FrameworkOptions keepId={frameworkId} />
                 <option value="__manage">Manage frameworks…</option>
               </select>
             </label>

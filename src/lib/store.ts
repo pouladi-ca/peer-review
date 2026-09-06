@@ -3,8 +3,8 @@ import { produce } from 'immer';
 import { nanoid } from 'nanoid';
 import { db } from './db';
 import { api, onUnauthorized, type Me } from './api';
-import { SyncEngine, deviceId, type SyncStatus } from './sync/engine';
-import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef } from './frameworks';
+import { SyncEngine, deviceId, type SyncStatus, PREFS_KEY } from './sync/engine';
+import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef, EMPTY_PREFS, type FrameworkPrefs } from './frameworks';
 import { getSetting, setSetting } from './db';
 import { extractAllPages, loadPdf, pageDims, repairLigatures, type PDFDocumentProxy } from './pdf';
 import { lazyLigatureRepair } from './analyze/ligatures';
@@ -104,6 +104,8 @@ interface State {
   /** PDF uploads in flight, by document id, for the progress strip. */
   transfers: Record<string, { name: string; fraction: number }>;
   customFrameworks: CustomFrameworkDef[];
+  /** Pinned, hidden, and default frameworks for this reviewer's menus. */
+  frameworkPrefs: FrameworkPrefs;
   /** Bumped whenever the set of frameworks changes so views re-resolve them. */
   frameworksVersion: number;
   frameworkEditor: { open: boolean; id?: string };
@@ -155,6 +157,7 @@ interface State {
   saveCustomFramework(def: CustomFrameworkDef): Promise<void>;
   deleteCustomFramework(id: string): Promise<boolean>;
   openFrameworkEditor(id?: string): void;
+  setFrameworkPrefs(patch: Partial<FrameworkPrefs>): Promise<void>;
   closeFrameworkEditor(): void;
   /** After a successful login: remember who is signed in, load data, and start syncing. */
   setSheet(sheet: 'nav' | 'panel' | null): void;
@@ -245,7 +248,7 @@ async function loadReviewList(set: (partial: Partial<State>) => void): Promise<v
 
 /** Wipe every locally cached review, file, and sync state on this device. */
 async function clearLocalData(): Promise<void> {
-  await Promise.all([db.reviews.clear(), db.files.clear(), db.outbox.clear(), db.syncstate.clear(), db.settings.delete('sync.cursor'), db.settings.delete('customFrameworks'), db.settings.delete('auth.email')]);
+  await Promise.all([db.reviews.clear(), db.files.clear(), db.outbox.clear(), db.syncstate.clear(), db.settings.delete('sync.cursor'), db.settings.delete('customFrameworks'), db.settings.delete('frameworkPrefs'), db.settings.delete('auth.email')]);
 }
 
 export const useStore = create<State>((set, get) => {
@@ -370,6 +373,7 @@ export const useStore = create<State>((set, get) => {
         setCustomFrameworks(defs);
         set((s) => ({ customFrameworks: defs, frameworksVersion: s.frameworksVersion + 1 }));
       },
+      onPrefsChanged: (prefs) => set({ frameworkPrefs: prefs }),
       onReviewChanged: (id, review) => {
         const s = get();
         if (review === null) {
@@ -477,6 +481,7 @@ export const useStore = create<State>((set, get) => {
     busy: null,
     transfers: {},
     customFrameworks: [],
+    frameworkPrefs: EMPTY_PREFS,
     frameworksVersion: 0,
     frameworkEditor: { open: false },
     authed: null,
@@ -533,7 +538,8 @@ export const useStore = create<State>((set, get) => {
       try {
         const defs = await getSetting<CustomFrameworkDef[]>('customFrameworks', []);
         setCustomFrameworks(defs);
-        set((s) => ({ customFrameworks: defs, frameworksVersion: s.frameworksVersion + 1 }));
+        const prefs = await getSetting<FrameworkPrefs>('frameworkPrefs', EMPTY_PREFS);
+        set((s) => ({ customFrameworks: defs, frameworkPrefs: { ...EMPTY_PREFS, ...prefs }, frameworksVersion: s.frameworksVersion + 1 }));
         await loadReviewList(set);
         set({ booted: true });
       } catch (e) {
@@ -953,6 +959,12 @@ export const useStore = create<State>((set, get) => {
     closeAdmin: () => set({ adminOpen: false }),
     openPasswordDialog: () => set({ passwordDialogOpen: true, paletteOpen: false, helpOpen: false }),
     closePasswordDialog: () => set({ passwordDialogOpen: false }),
+    async setFrameworkPrefs(patch) {
+      const next: FrameworkPrefs = { ...get().frameworkPrefs, ...patch };
+      set({ frameworkPrefs: next });
+      // Persist locally and queue the sync together, so neither waits on the other.
+      await Promise.all([setSetting('frameworkPrefs', next), ensureEngine().recordAccount(PREFS_KEY, next)]);
+    },
     openFrameworkEditor: (id) => set({ frameworkEditor: { open: true, id }, paletteOpen: false, helpOpen: false }),
     closeFrameworkEditor: () => set({ frameworkEditor: { open: false } }),
   };

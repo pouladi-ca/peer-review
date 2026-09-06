@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useAllFrameworks, useFramework } from '../hooks/useFramework';
+import { useFramework } from '../hooks/useFramework';
+import { FrameworkOptions } from './FrameworkOptions';
 import { ArrowLeft, Sun, Moon, Monitor, Command, Keyboard, Scan, Clock, Check, Loader2, Cloud, CloudOff, RefreshCw, LogOut, MoreHorizontal, SlidersHorizontal, KeyRound, Users } from 'lucide-react';
 import { useStore } from '../lib/store';
 
@@ -19,7 +20,6 @@ export function TopBar() {
   const [showProgress, setShowProgress] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const fw = useFramework(review.frameworkId);
-  const frameworks = useAllFrameworks();
   const progress = useMemo(() => computeProgress(review, fw), [review, fw]);
 
   const cycleTheme = () => setTheme(theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system');
@@ -54,22 +54,7 @@ export function TopBar() {
             }}
             aria-label="Review framework"
           >
-            <optgroup label="Built in">
-              {frameworks.filter((f) => !f.custom).map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </optgroup>
-            {frameworks.some((f) => f.custom) && (
-              <optgroup label="Yours">
-                {frameworks.filter((f) => f.custom).map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
+            <FrameworkOptions keepId={review.frameworkId} />
             <option value="__manage">Manage frameworks…</option>
           </select>
         </label>
@@ -135,11 +120,7 @@ export function TopBar() {
                     }}
                     aria-label="Review framework"
                   >
-                    {frameworks.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.name}
-                      </option>
-                    ))}
+                    <FrameworkOptions keepId={review.frameworkId} />
                     <option value="__manage">Manage frameworks…</option>
                   </select>
                 </label>

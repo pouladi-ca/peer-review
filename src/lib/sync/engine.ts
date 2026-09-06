@@ -12,7 +12,7 @@ import { produce } from 'immer';
 import { nanoid } from 'nanoid';
 import { api, ApiError, type ChangesIn, type ReviewOut } from '../api';
 import { db, getSetting, setSetting, type OutboxRow } from '../db';
-import type { CustomFrameworkDef } from '../frameworks';
+import { EMPTY_PREFS, type CustomFrameworkDef, type FrameworkPrefs } from '../frameworks';
 import type { Review } from '../types';
 import { applyRecord, diffRecords, isMergeKey } from './records';
 
@@ -29,10 +29,15 @@ export interface SyncHooks {
   /** A review changed remotely (or was created). `null` when it was deleted. */
   onReviewChanged(id: string, review: Review | null): void;
   onAccountChanged(frameworks: CustomFrameworkDef[]): void;
+  /** The reviewer's framework menu preferences changed on another device. */
+  onPrefsChanged(prefs: FrameworkPrefs): void;
   onStatus(status: SyncStatus): void;
   /** The review currently open in the workspace, if any. */
   currentReview(): Review | null;
 }
+
+/** Account record holding the reviewer's framework menu preferences. */
+export const PREFS_KEY = 'prefs:frameworks';
 
 const PUSH_DEBOUNCE_MS = 700;
 const POLL_MS = 5000;
@@ -256,18 +261,28 @@ export class SyncEngine {
     if (changes.account.length) {
       const defs = await getSetting<CustomFrameworkDef[]>('customFrameworks', []);
       const map = new Map(defs.map((d) => [d.id, d]));
+      let prefs: FrameworkPrefs | undefined;
       for (const rec of changes.account) {
-        if (!rec.key.startsWith('framework:')) continue;
-        const id = rec.key.slice('framework:'.length);
+        const isFramework = rec.key.startsWith('framework:');
+        if (!isFramework && rec.key !== PREFS_KEY) continue;
         const mineRow = await db.syncstate.get(`account|${rec.key}`);
         if (mineRow && rec.updated_at < mineRow.ts) continue;
-        if (rec.deleted) map.delete(id);
-        else map.set(id, rec.data as CustomFrameworkDef);
+        if (isFramework) {
+          const id = rec.key.slice('framework:'.length);
+          if (rec.deleted) map.delete(id);
+          else map.set(id, rec.data as CustomFrameworkDef);
+        } else {
+          prefs = rec.deleted ? EMPTY_PREFS : { ...EMPTY_PREFS, ...(rec.data as Partial<FrameworkPrefs>) };
+        }
         await db.syncstate.put({ id: `account|${rec.key}`, reviewId: '', key: rec.key, ts: rec.updated_at });
       }
       const merged = [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
       await setSetting('customFrameworks', merged);
       this.hooks.onAccountChanged(merged);
+      if (prefs) {
+        await setSetting('frameworkPrefs', prefs);
+        this.hooks.onPrefsChanged(prefs);
+      }
     }
 
     await setSetting('sync.cursor', changes.seq);

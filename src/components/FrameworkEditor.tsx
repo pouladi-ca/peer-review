@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { produce } from 'immer';
 import { nanoid } from 'nanoid';
-import { X, Plus, Trash2, ArrowUp, ArrowDown, Download, Upload, Copy, Sparkles } from 'lucide-react';
+import { X, Plus, Trash2, ArrowUp, ArrowDown, Download, Upload, Copy, Sparkles, Star, Eye, EyeOff, CircleDot, Circle } from 'lucide-react';
+import { useAllFrameworks } from '../hooks/useFramework';
 import { useStore } from '../lib/store';
 import { FRAMEWORKS, frameworkToCustomDef, getFramework, type CustomFrameworkDef, type ScaleDef } from '../lib/frameworks';
 import { downloadText, safeFilename } from '../lib/export/download';
@@ -226,7 +227,7 @@ export function FrameworkEditor() {
         <header>
           <div>
             <h2>Review frameworks</h2>
-            <p className="muted small">Define the criteria and scales for any agency. Frameworks are stored in this browser and can be exported to share with co-reviewers.</p>
+            <p className="muted small">Define the criteria and scales for any agency. Your frameworks and menu settings are part of your account and follow you to every device; export JSON to share one with a co-reviewer.</p>
           </div>
           <button type="button" className="icon-btn" aria-label="Close" onClick={close}>
             <X size={16} />
@@ -275,6 +276,7 @@ export function FrameworkEditor() {
               </button>
               <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={(e) => onImport(e.target.files?.[0])} />
             </div>
+            <MenuPrefs />
           </aside>
 
           <div className="fw-main" ref={mainRef}>
@@ -420,5 +422,47 @@ export function FrameworkEditor() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Pin the agencies you review for, hide the rest, and choose the default for new reviews. */
+function MenuPrefs() {
+  const all = useAllFrameworks();
+  const prefs = useStore((s) => s.frameworkPrefs);
+  const setPrefs = useStore((s) => s.setFrameworkPrefs);
+  const togglePin = (id: string) => void setPrefs({ pinned: prefs.pinned.includes(id) ? prefs.pinned.filter((x) => x !== id) : [...prefs.pinned, id] });
+  const toggleHide = (id: string) => {
+    const hidden = prefs.hidden.includes(id) ? prefs.hidden.filter((x) => x !== id) : [...prefs.hidden, id];
+    void setPrefs({ hidden, ...(hidden.includes(id) && prefs.defaultId === id ? { defaultId: undefined } : {}) });
+  };
+  const setDefault = (id: string) => void setPrefs({ defaultId: prefs.defaultId === id ? undefined : id });
+  return (
+    <>
+      <div className="fw-side-title">Your menu</div>
+      <p className="muted small">Pin the agencies you review for, hide the rest, and pick a default for new reviews. This follows you to every device.</p>
+      <ul className="fw-menu">
+        {all.map((f) => {
+          const pinned = prefs.pinned.includes(f.id);
+          const hidden = prefs.hidden.includes(f.id);
+          const isDefault = prefs.defaultId === f.id;
+          return (
+            <li key={f.id} className={`fw-menu-row ${hidden ? 'is-hidden' : ''} ${pinned ? 'is-pinned' : ''}`}>
+              <button type="button" className={`icon-btn fw-menu-btn ${pinned ? 'is-on' : ''}`} onClick={() => togglePin(f.id)} aria-pressed={pinned} aria-label={`${pinned ? 'Unpin' : 'Pin'} ${f.name}`} title={pinned ? 'Unpin' : 'Pin to the top of the menu'}>
+                <Star size={14} fill={pinned ? 'currentColor' : 'none'} />
+              </button>
+              <span className="fw-menu-name" title={f.name}>
+                {f.name}
+              </span>
+              <button type="button" className={`icon-btn fw-menu-btn ${isDefault ? 'is-on' : ''}`} onClick={() => setDefault(f.id)} disabled={hidden} aria-pressed={isDefault} aria-label={`${isDefault ? 'Clear default:' : 'Default for new reviews:'} ${f.name}`} title={isDefault ? 'Default for new reviews (click to clear)' : 'Use for new reviews instead of detecting from the PDF'}>
+                {isDefault ? <CircleDot size={14} /> : <Circle size={14} />}
+              </button>
+              <button type="button" className={`icon-btn fw-menu-btn ${hidden ? 'is-on' : ''}`} onClick={() => toggleHide(f.id)} aria-pressed={hidden} aria-label={`${hidden ? 'Show' : 'Hide'} ${f.name}`} title={hidden ? 'Show in menus' : 'Hide from menus'}>
+                {hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }

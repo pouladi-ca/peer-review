@@ -309,3 +309,32 @@ test('command palette opens and dark theme applies', async ({ page }) => {
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(shots, '09-dark.png') });
 });
+
+test('the framework menu can be pinned, hidden, and given a default', async ({ page }) => {
+  await login(page);
+  const select = page.locator('.dropzone-row select');
+  await select.selectOption('__manage');
+  await expect(page.locator('.fw-editor')).toBeVisible();
+  const hdsa = 'HDSA Human Biology / Human Experience Project';
+  await page.getByRole('button', { name: `Pin ${hdsa}` }).click();
+  await page.getByRole('button', { name: 'Hide NSF Merit Review' }).click();
+  await page.getByRole('button', { name: `Default for new reviews: ${hdsa}` }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.fw-editor')).toBeHidden();
+  await expect(select).toHaveValue('hdsa');
+  await expect(select.locator('optgroup[label="Pinned"] option')).toHaveText([hdsa]);
+  await expect(select.locator('option', { hasText: 'NSF Merit Review' })).toHaveCount(0);
+  // Preferences are part of the account: once pushed, they survive a reload.
+  await expect(page.locator('.library-tag .sync-state')).toContainText(/Synced/, { timeout: 15_000 });
+  await page.reload();
+  await expect(page.locator('.library-main')).toBeVisible();
+  await expect(select).toHaveValue('hdsa');
+  // Put things back for the tests that rely on detection.
+  await select.selectOption('__manage');
+  await page.getByRole('button', { name: `Unpin ${hdsa}` }).click();
+  await page.getByRole('button', { name: 'Show NSF Merit Review' }).click();
+  await page.getByRole('button', { name: `Clear default: ${hdsa}` }).click();
+  await page.keyboard.press('Escape');
+  await expect(select).toHaveValue('auto');
+  await expect(page.locator('.library-tag .sync-state')).toContainText(/Synced/, { timeout: 15_000 });
+});

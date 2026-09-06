@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FRAMEWORKS, allFrameworks, customToFramework, detectFramework, fieldSpec, frameworkToCustomDef, getFramework, recommendationSpec, setCustomFrameworks, scoreLabel, type CustomFrameworkDef } from './frameworks';
+import { FRAMEWORKS, allFrameworks, customToFramework, detectFramework, fieldSpec, frameworkToCustomDef, getFramework, recommendationSpec, setCustomFrameworks, scoreLabel, type CustomFrameworkDef, arrangeFrameworks, EMPTY_PREFS } from './frameworks';
 
 describe('built-in frameworks', () => {
   it('ships fourteen frameworks with core criteria, scales, and checklists', () => {
@@ -112,5 +112,27 @@ describe('custom frameworks', () => {
     expect(copy.criteria.map((c) => c.short)).toEqual(['Intellectual Merit', 'Broader Impacts', 'Solicitation', 'Data Management', 'Mentoring']);
     const back = customToFramework(copy);
     expect(back.criteria[0].bulleted).toBe(true);
+  });
+});
+
+describe('arrangeFrameworks', () => {
+  it('puts pinned first in pin order, drops hidden, and always keeps the current one', () => {
+    const all = FRAMEWORKS;
+    const { pinned, others, hiddenCount } = arrangeFrameworks(all, { pinned: ['hdsa', 'nih-2025'], hidden: ['nsf', 'hdsa'] }, 'nsf');
+    expect(pinned.map((f) => f.id)).toEqual(['nih-2025']); // hidden pins stay hidden
+    expect(others.some((f) => f.id === 'nsf')).toBe(true); // kept: it is the review's current framework
+    expect(others.some((f) => f.id === 'hdsa')).toBe(false);
+    expect(others.some((f) => f.id === 'nih-2025')).toBe(false);
+    expect(hiddenCount).toBe(1);
+    const plain = arrangeFrameworks(all, EMPTY_PREFS);
+    expect(plain.pinned).toEqual([]);
+    expect(plain.others.length).toBe(all.length);
+    expect(plain.hiddenCount).toBe(0);
+  });
+
+  it('ignores pins for frameworks that no longer exist', () => {
+    const { pinned, hiddenCount } = arrangeFrameworks(FRAMEWORKS, { pinned: ['gone'], hidden: ['gone'] });
+    expect(pinned).toEqual([]);
+    expect(hiddenCount).toBe(0);
   });
 });
