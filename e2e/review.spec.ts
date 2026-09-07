@@ -413,3 +413,29 @@ test('writing aids: proposal vocabulary autocompletes, bias wording is noted, sa
   await page.getByLabel(/Include the framework/).uncheck();
   await expect(page.locator('.preview .pv-guide')).toHaveCount(0);
 });
+
+test('meeting mode: a panel card with a drafted pitch, a discussion log, and the score after discussion', async ({ page }) => {
+  await startWithSample(page);
+  await page.locator('.panel-tab', { hasText: 'Score' }).click();
+  await page.locator('.card.overall .score-btn', { hasText: /^3$/ }).click();
+  await page.locator('.panel-tab', { hasText: 'Draft' }).click();
+  await expect(page.locator('.panel-pitch')).toContainText(/proposes 3 aims/);
+  await page.getByRole('button', { name: 'Open meeting mode' }).click();
+  const meeting = page.getByRole('dialog', { name: 'Panel' });
+  await expect(meeting).toBeVisible();
+  await expect(meeting.locator('.meeting-score-value').first()).toHaveText('3 Excellent');
+  await meeting.getByRole('button', { name: 'Draft' }).click();
+  await expect(meeting.getByLabel('Pitch')).toHaveValue(/I scored it 3 Excellent/);
+  await meeting.getByRole('radio', { name: 'Chair' }).click();
+  await meeting.getByLabel('What was said').fill('Asks about the timeline for Aim 2');
+  await meeting.getByLabel('What was said').press('Enter');
+  await expect(meeting.getByLabel('Discussion log')).toContainText('Chair');
+  await expect(meeting.getByLabel('Discussion log')).toContainText('Asks about the timeline for Aim 2');
+  await meeting.getByRole('radiogroup', { name: 'Score after discussion' }).getByRole('radio', { name: '4' }).click();
+  await meeting.getByLabel('Reason for the score after discussion').fill('timeline concern shared by R2');
+  await meeting.getByRole('button', { name: 'Record' }).click();
+  await expect(meeting.locator('.meeting-score-final .meeting-score-value')).toHaveText('4 Very Good');
+  await expect(meeting.getByLabel('Discussion log')).toContainText(/Score after discussion: 4 Very Good/);
+  await page.keyboard.press('Escape');
+  await expect(meeting).toHaveCount(0);
+});

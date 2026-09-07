@@ -4,17 +4,18 @@ import { nanoid } from 'nanoid';
 import { db } from './db';
 import { api, onUnauthorized, type Me } from './api';
 import { SyncEngine, deviceId, type SyncStatus, PREFS_KEY, PHRASES_KEY } from './sync/engine';
-import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef, EMPTY_PREFS, type FrameworkPrefs } from './frameworks';
+import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef, EMPTY_PREFS, type FrameworkPrefs, scoreLabel } from './frameworks';
 import { getSetting, setSetting } from './db';
 import { extractAllPages, loadPdf, pageDims, repairLigatures, type PDFDocumentProxy } from './pdf';
 import { lazyLigatureRepair } from './analyze/ligatures';
+import { EMPTY_PANEL } from './panel';
 import type { PhraseUse, UserPhrase } from './writing/phrasebook';
 import type { LigatureRepair } from './analyze/ligatures';
 import type { ReflowDoc, ReflowStatus } from './reflow/types';
 import { isTouchLike } from '../hooks/useMedia';
 import { detectOutline } from './analyze/outline';
 import { extractFacts } from './analyze/facts';
-import type { Annotation, DocMeta, DocRole, NoteKind, OutlineEntry, PageText, QuickFacts, Rect, Review } from './types';
+import type { Annotation, DocMeta, DocRole, NoteKind, OutlineEntry, PageText, QuickFacts, Rect, Review, PanelNotes } from './types';
 
 export type PanelTab = 'brief' | 'notes' | 'score' | 'checklist' | 'draft';
 export type NavTab = 'outline' | 'search' | 'pages';
@@ -112,6 +113,8 @@ interface State {
   /** Bumped whenever the set of frameworks changes so views re-resolve them. */
   frameworksVersion: number;
   frameworkEditor: { open: boolean; id?: string };
+  /** The meeting view is open over the workspace. */
+  meetingOpen: boolean;
   /** null while the session is being checked, then whether the reviewer is signed in. */
   authed: boolean | null;
   /** The signed-in account; null until known. */
@@ -160,6 +163,12 @@ interface State {
   saveCustomFramework(def: CustomFrameworkDef): Promise<void>;
   deleteCustomFramework(id: string): Promise<boolean>;
   openFrameworkEditor(id?: string): void;
+  openMeeting(): void;
+  closeMeeting(): void;
+  updatePanel(patch: Partial<PanelNotes>): void;
+  logDiscussion(who: string, text: string): void;
+  /** Record the score after discussion, with the reason, and log it. */
+  reviseScore(score: number | string | undefined, reason: string): void;
   setFrameworkPrefs(patch: Partial<FrameworkPrefs>): Promise<void>;
   saveUserPhrase(text: string, use: PhraseUse): Promise<void>;
   deleteUserPhrase(id: string): Promise<void>;
@@ -493,6 +502,7 @@ export const useStore = create<State>((set, get) => {
     userPhrases: [],
     frameworksVersion: 0,
     frameworkEditor: { open: false },
+    meetingOpen: false,
     authed: null,
     me: null,
     adminOpen: false,
@@ -986,6 +996,30 @@ export const useStore = create<State>((set, get) => {
       const next = get().userPhrases.filter((p) => p.id !== id);
       set({ userPhrases: next });
       await Promise.all([setSetting('userPhrases', { phrases: next }), ensureEngine().recordAccount(PHRASES_KEY, { phrases: next })]);
+    },
+    openMeeting: () => set({ meetingOpen: true, paletteOpen: false, helpOpen: false }),
+    closeMeeting: () => set({ meetingOpen: false }),
+    updatePanel(patch) {
+      get().update((r) => {
+        r.panel = { ...(r.panel ?? EMPTY_PANEL), ...patch };
+      });
+    },
+    logDiscussion(who, text) {
+      const clean = text.trim();
+      if (!clean) return;
+      get().update((r) => {
+        const p = r.panel ?? EMPTY_PANEL;
+        r.panel = { ...p, log: [...p.log, { id: nanoid(8), at: Date.now(), who: who.trim() || 'Panel', text: clean }] };
+      });
+    },
+    reviseScore(score, reason) {
+      const fw = getFramework(get().review?.frameworkId ?? 'generic');
+      const label = scoreLabel(fw.overall.scale, score) || 'unchanged';
+      get().update((r) => {
+        const p = r.panel ?? EMPTY_PANEL;
+        const entry = { id: nanoid(8), at: Date.now(), who: 'Me', text: `Score after discussion: ${label}${reason.trim() ? ` — ${reason.trim()}` : ''}` };
+        r.panel = { ...p, finalScore: score, finalReason: reason.trim() || undefined, log: [...p.log, entry] };
+      });
     },
     openFrameworkEditor: (id) => set({ frameworkEditor: { open: true, id }, paletteOpen: false, helpOpen: false }),
     closeFrameworkEditor: () => set({ frameworkEditor: { open: false } }),

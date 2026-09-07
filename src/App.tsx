@@ -10,6 +10,7 @@ import { Toast, BusyOverlay } from './components/Overlays';
 import { Celebrate } from './components/Celebrate';
 import { FrameworkEditor } from './components/FrameworkEditor';
 import { AdminPage } from './components/AdminPage';
+import { MeetingView } from './components/MeetingView';
 import { ChangePassword, PasswordDialogHost } from './components/ChangePassword';
 import { FigureViewerHost } from './components/reader/FigureViewer';
 
@@ -43,6 +44,7 @@ export default function App() {
       <FrameworkEditor />
       <AdminPage />
       <PasswordDialogHost />
+      <MeetingView />
       <FigureViewerHost />
       <BusyOverlay />
       <Celebrate />

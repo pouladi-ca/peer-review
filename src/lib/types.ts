@@ -86,6 +86,27 @@ export interface Review {
   activeByDevice?: Record<string, number>;
   /** Criterion the reviewer is currently focusing on; new notes default to it. */
   focusCriterionId?: string;
+  /** Talking points and the discussion log for the panel meeting. */
+  panel?: PanelNotes;
+}
+
+export interface DiscussionEntry {
+  id: string;
+  at: number;
+  /** Who said it: "Me", "R2", "Chair", and so on. */
+  who: string;
+  text: string;
+}
+
+export interface PanelNotes {
+  /** The two-sentence oral summary to open with. */
+  pitch: string;
+  /** Questions for the other reviewers or the program. */
+  ask: string;
+  log: DiscussionEntry[];
+  /** The score after discussion, when it changed. */
+  finalScore?: number | string;
+  finalReason?: string;
 }
 
 /** A positioned run of text on a page, normalised like Rect. */

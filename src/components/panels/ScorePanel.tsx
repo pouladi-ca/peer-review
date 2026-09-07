@@ -58,7 +58,7 @@ export function ScorePanel() {
   );
 }
 
-function ScoreControl({ scale, value, onChange, name }: { scale: ScaleDef; value: number | string | undefined; onChange: (v: number | string | undefined) => void; name: string }) {
+export function ScoreControl({ scale, value, onChange, name }: { scale: ScaleDef; value: number | string | undefined; onChange: (v: number | string | undefined) => void; name: string }) {
   if (scale.kind === 'categorical') {
     return (
       <div className="score-cat" role="radiogroup" aria-label={name}>

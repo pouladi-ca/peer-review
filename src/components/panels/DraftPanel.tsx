@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useFramework } from '../../hooks/useFramework';
-import { Copy, Download, FileText, Printer, Archive, Wand2, Eye, EyeOff } from 'lucide-react';
+import { Copy, Download, FileText, Printer, Archive, Wand2, Eye, EyeOff, Presentation } from 'lucide-react';
+import { draftPitch, EMPTY_PANEL, panelCardText } from '../../lib/panel';
 import { useStore } from '../../lib/store';
 import { autoSummary, composeDraft, draftToMarkdown, draftToPlainText, sectionPlainText, type DraftBullet } from '../../lib/draft';
 import { fieldSpec } from '../../lib/frameworks';
@@ -162,6 +163,20 @@ export function DraftPanel() {
           }
           aria-label="Confidential comments"
         />
+      </section>
+
+      <section className="card">
+        <div className="card-title">
+          <Presentation size={14} /> Panel card
+          <button type="button" className="link" onClick={() => void copyText(panelCardText(review, fw)).then((ok) => notify(ok ? 'Panel card copied.' : 'Copy failed.', ok ? 'success' : 'error'))}>
+            <Copy size={12} /> Copy
+          </button>
+        </div>
+        <p className="card-hint">Your pitch, top strengths and weaknesses, and questions for the meeting, with a log of the discussion and the score after it. Works offline on a phone.</p>
+        <p className="panel-pitch">{(review.panel ?? EMPTY_PANEL).pitch || draftPitch(review, fw)}</p>
+        <button type="button" className="btn" onClick={() => useStore.getState().openMeeting()}>
+          <Presentation size={14} /> Open meeting mode
+        </button>
       </section>
 
       <section className="card export">

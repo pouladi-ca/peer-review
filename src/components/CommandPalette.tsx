@@ -85,6 +85,7 @@ export function CommandPalette() {
           s.notify(ok ? 'Copied.' : 'Copy failed.', ok ? 'success' : 'error');
         },
       });
+      list.push({ id: 'meeting', label: 'Meeting mode: panel card and discussion log', group: 'Navigate', run: () => (close(), s.openMeeting()) });
       list.push({ id: 'library', label: 'Back to library', group: 'Navigate', run: () => (close(), s.closeReview()) });
     }
     list.push({ id: 'theme-light', label: 'Theme: light', group: 'Appearance', run: () => (s.setTheme('light'), close()) });
