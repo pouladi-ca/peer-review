@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useFramework } from '../../hooks/useFramework';
 import { Copy, Download, FileText, Printer, Archive, Wand2, Eye, EyeOff } from 'lucide-react';
 import { useStore } from '../../lib/store';
@@ -9,6 +9,7 @@ import { draftToDocx } from '../../lib/export/docx';
 import { createBackup } from '../../lib/export/backup';
 import { AutoTextarea, CharCount } from '../ui';
 import { SubmitCheck } from '../Scorecard';
+import { WritingAids } from '../WritingAids';
 
 export function DraftPanel() {
   const review = useStore((s) => s.review)!;
@@ -21,6 +22,8 @@ export function DraftPanel() {
   const base = safeFilename(review.title);
   const summarySpec = fieldSpec(fw, 'summary');
   const additionalSpec = fieldSpec(fw, 'additional');
+  const summaryRef = useRef<HTMLTextAreaElement>(null);
+  const additionalRef = useRef<HTMLTextAreaElement>(null);
 
   const doCopy = async (plain: boolean) => {
     const ok = await copyText(plain ? draftToPlainText(draft, { includeConfidential }) : draftToMarkdown(draft, { includeConfidential }));
@@ -71,6 +74,7 @@ export function DraftPanel() {
         </div>
         {summarySpec.hint && <p className="card-hint">{summarySpec.hint}</p>}
         <AutoTextarea
+          ref={summaryRef}
           minRows={4}
           value={review.draft.summary}
           placeholder={autoSummary(review)}
@@ -82,11 +86,22 @@ export function DraftPanel() {
           aria-label={summarySpec.label}
         />
         <CharCount value={review.draft.summary} max={summarySpec.maxChars} className="ta-count" />
+        <WritingAids
+          textareaRef={summaryRef}
+          value={review.draft.summary}
+          onChange={(summary) =>
+            update((r) => {
+              r.draft.summary = summary;
+            })
+          }
+          uses={['summary', 'weighing']}
+        />
       </section>
 
       <section className="card">
         <div className="card-title">{additionalSpec.label}</div>
         <AutoTextarea
+          ref={additionalRef}
           minRows={2}
           value={review.draft.additional}
           placeholder={additionalSpec.hint ?? 'Anything that does not belong under a criterion: presentation, scope, resubmission advice.'}
@@ -98,6 +113,16 @@ export function DraftPanel() {
           aria-label={additionalSpec.label}
         />
         <CharCount value={review.draft.additional} max={additionalSpec.maxChars} className="ta-count" />
+        <WritingAids
+          textareaRef={additionalRef}
+          value={review.draft.additional}
+          onChange={(additional) =>
+            update((r) => {
+              r.draft.additional = additional;
+            })
+          }
+          uses={['minor', 'question', 'applicant']}
+        />
       </section>
 
       <section className="card">

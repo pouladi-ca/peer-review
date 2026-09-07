@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useFramework } from '../../hooks/useFramework';
 import { ChevronDown, Target, AlertTriangle, MapPin } from 'lucide-react';
 import { useStore } from '../../lib/store';
@@ -6,6 +6,7 @@ import { criterionScale, fieldSpec, recommendationSpec, scoreLabel, type Criteri
 import type { Annotation } from '../../lib/types';
 import { AutoTextarea, CharCount, DictateButton, KindIcon, KIND_ORDER } from '../ui';
 import { clip } from '../../lib/format';
+import { WritingAids } from '../WritingAids';
 
 export function ScorePanel() {
   const review = useStore((s) => s.review)!;
@@ -161,6 +162,7 @@ function CriterionCard({ criterion: c, compact }: { criterion: Criterion; compac
   const score = review.scores[c.id];
   const focused = review.focusCriterionId === c.id;
   const [promptsOpen, setPromptsOpen] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const notes = useMemo(() => review.annotations.filter((a) => a.criterionId === c.id).sort((a, b) => a.page - b.page), [review.annotations, c.id]);
 
   const set = (patch: Partial<{ score: number | string | undefined; comment: string }>) =>
@@ -208,6 +210,7 @@ function CriterionCard({ criterion: c, compact }: { criterion: Criterion; compac
       )}
       {!c.unscored && <ScoreControl scale={scale} value={score?.score} onChange={(v) => set({ score: v })} name={c.name} />}
       <AutoTextarea
+        ref={textareaRef}
         minRows={compact ? 1 : 3}
         value={score?.comment ?? ''}
         placeholder={compact ? 'Comment (optional)' : c.unscored ? `Your comments on ${c.name.toLowerCase()}. The tagged strengths and weaknesses below will follow them in the draft.` : 'Rationale for this score. The tagged strengths and weaknesses below will follow it in the draft.'}
@@ -222,6 +225,20 @@ function CriterionCard({ criterion: c, compact }: { criterion: Criterion; compac
           )}
         </div>
       )}
+      {!compact && (
+        <WritingAids
+          textareaRef={textareaRef}
+          value={score?.comment ?? ''}
+          onChange={(comment) => set({ comment })}
+          uses={['strength', 'minor', 'major', 'question']}
+          criterion={c}
+          scale={c.unscored ? undefined : scale}
+          score={c.unscored ? undefined : score?.score}
+          scoreLabel={c.unscored ? undefined : scoreLabel(scale, score?.score) || undefined}
+          evidence={notes}
+          docs={review.docs}
+        />
+      )}
       {!compact && <LinkedNotes notes={notes} />}
       {compact && notes.length > 0 && <LinkedNotes notes={notes} />}
     </section>
@@ -234,6 +251,7 @@ function OverallCard({ consistency }: { consistency: string | null }) {
   const fw = useFramework(review.frameworkId);
   const commentSpec = fieldSpec(fw, 'overallComment');
   const recSpec = recommendationSpec(fw);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   return (
     <section className="card overall">
       <div className="card-title">{fw.overall.label}</div>
@@ -286,6 +304,7 @@ function OverallCard({ consistency }: { consistency: string | null }) {
         </div>
       )}
       <AutoTextarea
+        ref={textareaRef}
         minRows={4}
         value={review.overall.comment}
         placeholder={fw.form?.overallComment ? `${commentSpec.label}: what drove your score, and what you liked or disliked.` : 'Overall assessment: the two or three things that drove your rating, and how the weaknesses weigh against the strengths.'}
@@ -306,6 +325,21 @@ function OverallCard({ consistency }: { consistency: string | null }) {
         />
         <CharCount value={review.overall.comment} max={commentSpec.maxChars} />
       </div>
+      <WritingAids
+        textareaRef={textareaRef}
+        value={review.overall.comment}
+        onChange={(comment) =>
+          update((r) => {
+            r.overall.comment = comment;
+          })
+        }
+        uses={fw.form?.overallComment ? ['weighing', 'applicant'] : ['weighing']}
+        scale={fw.overall.scale}
+        score={review.overall.score}
+        scoreLabel={scoreLabel(fw.overall.scale, review.overall.score) || undefined}
+        evidence={review.annotations}
+        docs={review.docs}
+      />
     </section>
   );
 }

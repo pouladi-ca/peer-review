@@ -338,3 +338,41 @@ test('the framework menu can be pinned, hidden, and given a default', async ({ p
   await expect(select).toHaveValue('auto');
   await expect(page.locator('.library-tag .sync-state')).toContainText(/Synced/, { timeout: 15_000 });
 });
+
+test('writing aids: phrases insert with a selected blank, evidence composes into sentences, wording is checked against the score', async ({ page }) => {
+  await startWithSample(page);
+  // Focus the first criterion so the tagged note attaches to it, then tag a major weakness.
+  await page.locator('.panel-tab', { hasText: 'Score' }).click();
+  const card = page.locator('.criterion').first();
+  await card.getByRole('button', { name: /Focus/ }).click();
+  const span = page.locator('.textLayer span').filter({ hasText: /stroke|disability|astrocyte|repair/i }).first();
+  await span.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+  await page.locator('.sel-toolbar .sel-weakness').click();
+  await page.locator('.note.is-selected .note-comment').fill('no power analysis is given for the behavioural readouts');
+  await page.locator('.panel-tab', { hasText: 'Score' }).click();
+  const ta = card.locator('textarea').first();
+  // From evidence writes a sentence built from the note.
+  await card.getByRole('button', { name: /From evidence/ }).click();
+  // New weaknesses are minor until the reviewer says otherwise, so the minor template applies.
+  await expect(ta).toHaveValue(/A minor point: No power analysis is given for the behavioural readouts \(p\. \d+: “.+”\)\./);
+  // A phrase is inserted at the caret with its first blank selected.
+  await card.getByRole('button', { name: 'Phrases' }).click();
+  await page.getByRole('dialog', { name: 'Phrasebook' }).getByRole('radio', { name: 'Major weakness' }).click();
+  await page.locator('.aids-phrase').first().click();
+  await expect(ta).toHaveValue(/\{[^}]+\}/);
+  const selected = await ta.evaluate((el: HTMLTextAreaElement) => el.value.slice(el.selectionStart, el.selectionEnd));
+  expect(selected).toMatch(/^\{.+\}$/);
+  // Harsh wording next to a top score is flagged; a matching score clears it.
+  await ta.fill('A significant weakness undermines Aim 2, and the premise is not credible; the plan is not feasible.');
+  await card.locator('.score-btn', { hasText: /^2$/ }).click();
+  await expect(card.locator('.aids-callout')).toContainText(/reads harsher/);
+  await card.locator('.score-btn', { hasText: /^7$/ }).click();
+  await expect(card.locator('.aids-callout')).toHaveCount(0);
+});

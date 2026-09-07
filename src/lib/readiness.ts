@@ -1,5 +1,6 @@
 import { criterionScale, fieldSpec, recommendationSpec, scoreLabel, type Framework } from './frameworks';
 import { composeDraft, sectionPlainText } from './draft';
+import { calibration } from './writing/intensity';
 import type { PanelTab } from './store';
 import type { Review } from './types';
 
@@ -111,6 +112,18 @@ export function computeReadiness(review: Review, fw: Framework): Readiness {
   if (summarySpec.maxChars) overLimit('summary', summarySpec.label, overBy(review.draft.summary, summarySpec.maxChars), summarySpec.maxChars, 'draft');
   if (additionalSpec.maxChars) overLimit('additional', additionalSpec.label, overBy(review.draft.additional, additionalSpec.maxChars), additionalSpec.maxChars, 'draft');
   if (overallSpec.maxChars) overLimit('overall', overallSpec.label, overBy(review.overall.comment, overallSpec.maxChars), overallSpec.maxChars, 'score');
+
+  // Wording whose intensity contradicts the score it sits next to.
+  for (const c of core) {
+    if (c.unscored) continue;
+    const s = review.scores[c.id];
+    const cal = s?.comment ? calibration(s.comment, criterionScale(fw, c), s.score, 'its score') : null;
+    if (cal) suggestions.push({ id: `cal-${c.id}`, kind: 'suggestion', text: `${c.short}: the wording reads ${cal.direction} than its score`, tab: 'score' });
+  }
+  {
+    const cal = review.overall.comment ? calibration(review.overall.comment, fw.overall.scale, review.overall.score, 'the overall score') : null;
+    if (cal) suggestions.push({ id: 'cal-overall', kind: 'suggestion', text: `The overall rationale reads ${cal.direction} than the score`, tab: 'score' });
+  }
 
   // Balance and constructiveness nudges.
   for (const row of rows) {
