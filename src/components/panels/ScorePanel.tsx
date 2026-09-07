@@ -237,6 +237,7 @@ function CriterionCard({ criterion: c, compact }: { criterion: Criterion; compac
           scoreLabel={c.unscored ? undefined : scoreLabel(scale, score?.score) || undefined}
           evidence={notes}
           docs={review.docs}
+          label={c.short}
         />
       )}
       {!compact && <LinkedNotes notes={notes} />}
@@ -339,6 +340,8 @@ function OverallCard({ consistency }: { consistency: string | null }) {
         scoreLabel={scoreLabel(fw.overall.scale, review.overall.score) || undefined}
         evidence={review.annotations}
         docs={review.docs}
+        label={commentSpec.label}
+        applicantFacing={!!fw.form?.overallComment}
       />
     </section>
   );

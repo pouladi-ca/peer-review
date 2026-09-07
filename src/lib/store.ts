@@ -3,11 +3,12 @@ import { produce } from 'immer';
 import { nanoid } from 'nanoid';
 import { db } from './db';
 import { api, onUnauthorized, type Me } from './api';
-import { SyncEngine, deviceId, type SyncStatus, PREFS_KEY } from './sync/engine';
+import { SyncEngine, deviceId, type SyncStatus, PREFS_KEY, PHRASES_KEY } from './sync/engine';
 import { detectFramework, getFramework, setCustomFrameworks, type CustomFrameworkDef, EMPTY_PREFS, type FrameworkPrefs } from './frameworks';
 import { getSetting, setSetting } from './db';
 import { extractAllPages, loadPdf, pageDims, repairLigatures, type PDFDocumentProxy } from './pdf';
 import { lazyLigatureRepair } from './analyze/ligatures';
+import type { PhraseUse, UserPhrase } from './writing/phrasebook';
 import type { LigatureRepair } from './analyze/ligatures';
 import type { ReflowDoc, ReflowStatus } from './reflow/types';
 import { isTouchLike } from '../hooks/useMedia';
@@ -106,6 +107,8 @@ interface State {
   customFrameworks: CustomFrameworkDef[];
   /** Pinned, hidden, and default frameworks for this reviewer's menus. */
   frameworkPrefs: FrameworkPrefs;
+  /** Phrases this reviewer saved for reuse. */
+  userPhrases: UserPhrase[];
   /** Bumped whenever the set of frameworks changes so views re-resolve them. */
   frameworksVersion: number;
   frameworkEditor: { open: boolean; id?: string };
@@ -158,6 +161,8 @@ interface State {
   deleteCustomFramework(id: string): Promise<boolean>;
   openFrameworkEditor(id?: string): void;
   setFrameworkPrefs(patch: Partial<FrameworkPrefs>): Promise<void>;
+  saveUserPhrase(text: string, use: PhraseUse): Promise<void>;
+  deleteUserPhrase(id: string): Promise<void>;
   closeFrameworkEditor(): void;
   /** After a successful login: remember who is signed in, load data, and start syncing. */
   setSheet(sheet: 'nav' | 'panel' | null): void;
@@ -248,7 +253,7 @@ async function loadReviewList(set: (partial: Partial<State>) => void): Promise<v
 
 /** Wipe every locally cached review, file, and sync state on this device. */
 async function clearLocalData(): Promise<void> {
-  await Promise.all([db.reviews.clear(), db.files.clear(), db.outbox.clear(), db.syncstate.clear(), db.settings.delete('sync.cursor'), db.settings.delete('customFrameworks'), db.settings.delete('frameworkPrefs'), db.settings.delete('auth.email')]);
+  await Promise.all([db.reviews.clear(), db.files.clear(), db.outbox.clear(), db.syncstate.clear(), db.settings.delete('sync.cursor'), db.settings.delete('customFrameworks'), db.settings.delete('frameworkPrefs'), db.settings.delete('userPhrases'), db.settings.delete('auth.email')]);
 }
 
 export const useStore = create<State>((set, get) => {
@@ -374,6 +379,9 @@ export const useStore = create<State>((set, get) => {
         set((s) => ({ customFrameworks: defs, frameworksVersion: s.frameworksVersion + 1 }));
       },
       onPrefsChanged: (prefs) => set({ frameworkPrefs: prefs }),
+      onAccountPref: (key, data) => {
+        if (key === PHRASES_KEY) set({ userPhrases: ((data as { phrases?: UserPhrase[] } | null)?.phrases ?? []).filter((p) => p && typeof p.text === 'string') });
+      },
       onReviewChanged: (id, review) => {
         const s = get();
         if (review === null) {
@@ -482,6 +490,7 @@ export const useStore = create<State>((set, get) => {
     transfers: {},
     customFrameworks: [],
     frameworkPrefs: EMPTY_PREFS,
+    userPhrases: [],
     frameworksVersion: 0,
     frameworkEditor: { open: false },
     authed: null,
@@ -539,7 +548,8 @@ export const useStore = create<State>((set, get) => {
         const defs = await getSetting<CustomFrameworkDef[]>('customFrameworks', []);
         setCustomFrameworks(defs);
         const prefs = await getSetting<FrameworkPrefs>('frameworkPrefs', EMPTY_PREFS);
-        set((s) => ({ customFrameworks: defs, frameworkPrefs: { ...EMPTY_PREFS, ...prefs }, frameworksVersion: s.frameworksVersion + 1 }));
+        const phrases = await getSetting<{ phrases?: UserPhrase[] } | null>('userPhrases', null);
+        set((s) => ({ customFrameworks: defs, frameworkPrefs: { ...EMPTY_PREFS, ...prefs }, userPhrases: phrases?.phrases ?? [], frameworksVersion: s.frameworksVersion + 1 }));
         await loadReviewList(set);
         set({ booted: true });
       } catch (e) {
@@ -964,6 +974,18 @@ export const useStore = create<State>((set, get) => {
       set({ frameworkPrefs: next });
       // Persist locally and queue the sync together, so neither waits on the other.
       await Promise.all([setSetting('frameworkPrefs', next), ensureEngine().recordAccount(PREFS_KEY, next)]);
+    },
+    async saveUserPhrase(text, use) {
+      const clean = text.trim().replace(/\s+/g, ' ');
+      if (!clean) return;
+      const next = [{ id: nanoid(8), text: clean, use, createdAt: Date.now() }, ...get().userPhrases.filter((p) => p.text !== clean)];
+      set({ userPhrases: next });
+      await Promise.all([setSetting('userPhrases', { phrases: next }), ensureEngine().recordAccount(PHRASES_KEY, { phrases: next })]);
+    },
+    async deleteUserPhrase(id) {
+      const next = get().userPhrases.filter((p) => p.id !== id);
+      set({ userPhrases: next });
+      await Promise.all([setSetting('userPhrases', { phrases: next }), ensureEngine().recordAccount(PHRASES_KEY, { phrases: next })]);
     },
     openFrameworkEditor: (id) => set({ frameworkEditor: { open: true, id }, paletteOpen: false, helpOpen: false }),
     closeFrameworkEditor: () => set({ frameworkEditor: { open: false } }),

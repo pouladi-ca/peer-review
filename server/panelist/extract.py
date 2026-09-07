@@ -1454,13 +1454,13 @@ def page_text_json(pd: PageData) -> dict:
     """
     W = pd.width or 1.0
     H = pd.height or 1.0
-    items: list[list] = []  # [text, x, y, w, h, size]
+    items: list[list] = []  # [text, x, y, w, h, size, style]
     for ln in pd.lines:
         for sp in ln.spans:
             if not sp.text.strip():
                 continue
             b = sp.bbox
-            items.append([sp.text, b.x0, b.y0, max(b.width, 0.0), max(b.height, sp.size), sp.size])
+            items.append([sp.text, b.x0, b.y0, max(b.width, 0.0), max(b.height, sp.size), sp.size, sp.style])
     items.sort(key=lambda it: (it[2], it[1]))
     rows: list[list[list]] = []
     for it in items:
@@ -1477,9 +1477,12 @@ def page_text_json(pd: PageData) -> dict:
         merged: list[list] = []
         for it in row:
             last = merged[-1] if merged else None
+            # Touching spans are one word only when they share a style: an italic gene symbol
+            # hugging the roman word before it must stay a separate token.
             if (
                 last is not None
                 and it[1] - (last[1] + last[3]) < last[5] * 0.15
+                and last[6] == it[6]
                 and not last[0].endswith((" ", "\u00a0"))
                 and not it[0].startswith((" ", "\u00a0"))
             ):
@@ -1487,7 +1490,7 @@ def page_text_json(pd: PageData) -> dict:
                 last[3] = max(last[3], it[1] + it[3] - last[1])
                 last[4] = max(last[4], it[4])
             else:
-                merged.append([it[0].rstrip() or it[0], it[1], it[2], it[3], it[4], it[5]])
+                merged.append([it[0].rstrip() or it[0], it[1], it[2], it[3], it[4], it[5], it[6]])
         line_index = len(lines)
         line_runs = []
         for m in merged:

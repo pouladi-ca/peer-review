@@ -162,3 +162,19 @@ describe('form-specific boxes', () => {
     expect(md).toContain('**Score: 2 Historically fundable**');
   });
 });
+
+describe('guidance export', () => {
+  it('is left out by default and added under each heading when asked', () => {
+    const r = sampleReview();
+    const d = composeDraft(r, getFramework('nih-2025'));
+    const plain = draftToMarkdown(d);
+    const guided = draftToMarkdown(d, { includeGuidance: true });
+    const prompt = d.sections[0].guide!.prompts[0];
+    expect(plain).not.toContain(prompt);
+    expect(guided).toContain(`> - ${prompt}`);
+    expect(guided).toContain('> How NIH reviews:');
+    expect(guided).toContain('## NIH guidance to reviewers');
+    // Plain text turns the blockquotes into indented lines.
+    expect(draftToPlainText(d, { includeGuidance: true })).toContain(`    • ${prompt}`);
+  });
+});

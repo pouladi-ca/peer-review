@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFramework } from '../../hooks/useFramework';
 import { Highlighter, Trash2, MapPin, ArrowDownUp } from 'lucide-react';
 import { useStore } from '../../lib/store';
+import { VocabComplete } from '../VocabComplete';
+import { useVocabulary } from '../../hooks/useVocabulary';
 import type { Annotation, NoteKind } from '../../lib/types';
 import { AutoTextarea, DictateButton, EmptyState, IconButton, KIND_META, KIND_ORDER, KindIcon, Segmented } from '../ui';
 import { clip } from '../../lib/format';
@@ -85,6 +87,7 @@ export function NotesPanel() {
 }
 
 function NoteCard({ note }: { note: Annotation }) {
+  const terms = useVocabulary();
   const review = useStore((s) => s.review)!;
   const selected = useStore((s) => s.selectedNoteId === note.id);
   const editing = useStore((s) => s.editingNoteId === note.id);
@@ -174,12 +177,14 @@ function NoteCard({ note }: { note: Annotation }) {
         onBlur={() => useStore.getState().editNote(null)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
+            if (document.querySelector('.vocab-pop')) return; // the autocomplete took the Enter
             e.preventDefault();
             (e.target as HTMLTextAreaElement).blur();
           }
           if (e.key === 'Escape') (e.target as HTMLTextAreaElement).blur();
         }}
       />
+      <VocabComplete textareaRef={ta} value={note.comment} onChange={(comment) => updateAnnotation(note.id, { comment })} terms={terms} />
       <footer className="note-foot">
         <DictateButton compact onText={(t) => updateAnnotation(note.id, { comment: note.comment ? `${note.comment.replace(/\s+$/, '')} ${t}` : t.charAt(0).toUpperCase() + t.slice(1) })} />
         <span className="grow" />

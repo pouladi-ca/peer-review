@@ -17,6 +17,22 @@ export function DraftPanel() {
   const notify = useStore((s) => s.notify);
   const fw = useFramework(review.frameworkId);
   const [includeConfidential, setIncludeConfidential] = useState(false);
+  const [includeGuidance, setIncludeGuidance] = useState(() => {
+    try {
+      return localStorage.getItem('panelist.exportGuidance') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleGuidance = (on: boolean) => {
+    setIncludeGuidance(on);
+    try {
+      localStorage.setItem('panelist.exportGuidance', on ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  };
+  const exportOpts = { includeConfidential, includeGuidance };
   const [showPreview, setShowPreview] = useState(true);
   const draft = useMemo(() => composeDraft(review, fw), [review, fw]);
   const base = safeFilename(review.title);
@@ -26,12 +42,12 @@ export function DraftPanel() {
   const additionalRef = useRef<HTMLTextAreaElement>(null);
 
   const doCopy = async (plain: boolean) => {
-    const ok = await copyText(plain ? draftToPlainText(draft, { includeConfidential }) : draftToMarkdown(draft, { includeConfidential }));
+    const ok = await copyText(plain ? draftToPlainText(draft, exportOpts) : draftToMarkdown(draft, exportOpts));
     notify(ok ? `Copied the draft as ${plain ? 'plain text' : 'Markdown'}.` : 'Copy failed.', ok ? 'success' : 'error');
   };
   const doDocx = async () => {
     try {
-      downloadBlob(await draftToDocx(draft, { includeConfidential }), `${base}-review.docx`);
+      downloadBlob(await draftToDocx(draft, exportOpts), `${base}-review.docx`);
       notify('Word document downloaded.', 'success');
     } catch (e) {
       console.error(e);
@@ -95,6 +111,7 @@ export function DraftPanel() {
             })
           }
           uses={['summary', 'weighing']}
+          label={summarySpec.label}
         />
       </section>
 
@@ -122,6 +139,7 @@ export function DraftPanel() {
             })
           }
           uses={['minor', 'question', 'applicant']}
+          label={additionalSpec.label}
         />
       </section>
 
@@ -155,11 +173,15 @@ export function DraftPanel() {
           </span>
           <span className="chip chip-question">{draft.stats.questions} questions</span>
         </div>
+        <label className="switch export-opt">
+          <input type="checkbox" checked={includeGuidance} onChange={(e) => toggleGuidance(e.target.checked)} />
+          <span>Include the framework's questions and guidance under each heading</span>
+        </label>
         <div className="export-grid">
           <button type="button" className="btn" onClick={doDocx}>
             <FileText size={14} /> Word (.docx)
           </button>
-          <button type="button" className="btn" onClick={() => downloadText(draftToMarkdown(draft, { includeConfidential }), `${base}-review.md`, 'text/markdown')}>
+          <button type="button" className="btn" onClick={() => downloadText(draftToMarkdown(draft, exportOpts), `${base}-review.md`, 'text/markdown')}>
             <Download size={14} /> Markdown
           </button>
           <button type="button" className="btn" onClick={() => doCopy(false)}>
@@ -184,7 +206,7 @@ export function DraftPanel() {
             {showPreview ? <EyeOff size={12} /> : <Eye size={12} />} {showPreview ? 'Hide' : 'Show'}
           </button>
         </div>
-        {showPreview && <DraftPreview includeConfidential={includeConfidential} />}
+        {showPreview && <DraftPreview includeConfidential={includeConfidential} includeGuidance={includeGuidance} />}
       </section>
     </div>
   );
@@ -228,7 +250,23 @@ function BoxHead({ title, text, max }: { title: string; text: string; max?: numb
   );
 }
 
-export function DraftPreview({ includeConfidential }: { includeConfidential: boolean }) {
+function Guide({ description, prompts = [] }: { description?: string; prompts?: string[] }) {
+  if (!description && !prompts.length) return null;
+  return (
+    <div className="pv-guide">
+      {description && <p>{description}</p>}
+      {prompts.length > 0 && (
+        <ul>
+          {prompts.map((p, i) => (
+            <li key={i}>{p}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function DraftPreview({ includeConfidential, includeGuidance = false }: { includeConfidential: boolean; includeGuidance?: boolean }) {
   const review = useStore((s) => s.review)!;
   const fw = useFramework(review.frameworkId);
   const d = useMemo(() => composeDraft(review, fw), [review, fw]);
@@ -239,13 +277,15 @@ export function DraftPreview({ includeConfidential }: { includeConfidential: boo
       <p className="pv-meta">
         {d.frameworkName}. Drafted {new Date(d.generatedAt).toLocaleDateString()}.
       </p>
+      {includeGuidance && d.guide.about && <Guide description={`How ${d.guide.agency} reviews: ${d.guide.about}`} />}
       <BoxHead title={d.labels.summary} text={d.summary} max={d.limits.summary} />
       <p>{d.summary}</p>
       {d.sections
-        .filter((s) => !s.empty)
+        .filter((s) => !s.empty || (includeGuidance && s.guide))
         .map((s) => (
           <section key={s.id}>
             <BoxHead title={s.heading} text={sectionPlainText(s)} max={s.maxChars} />
+            {includeGuidance && s.guide && <Guide description={s.guide.description} prompts={s.guide.prompts} />}
             {s.scoreLine && <p className="pv-score">{s.scoreLine}</p>}
             {s.body && <p className="pv-body">{s.body}</p>}
             <Bullets title="Strengths" list={s.strengths} />
@@ -268,6 +308,7 @@ export function DraftPreview({ includeConfidential }: { includeConfidential: boo
       )}
       <section>
         <BoxHead title={d.overall.heading} text={overallText} />
+        {includeGuidance && <Guide description={[d.guide.overall, d.guide.scaleHint].filter(Boolean).join(' ')} />}
         {d.overall.scoreLine && <p className="pv-score">{d.overall.scoreLine}</p>}
         {d.overall.recommendation && (
           <p className="pv-score">
@@ -287,6 +328,12 @@ export function DraftPreview({ includeConfidential }: { includeConfidential: boo
         <section className="pv-confidential">
           <h2>Confidential comments to the program</h2>
           <p className="pv-body">{d.confidential}</p>
+        </section>
+      )}
+      {includeGuidance && d.guide.guidance.length > 0 && (
+        <section>
+          <h2>{d.guide.agency} guidance to reviewers</h2>
+          <Guide prompts={d.guide.guidance} />
         </section>
       )}
     </article>

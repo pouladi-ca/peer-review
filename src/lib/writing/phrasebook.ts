@@ -126,3 +126,17 @@ export function placeholders(text: string): { start: number; end: number }[] {
   while ((m = re.exec(text))) out.push({ start: m.index, end: m.index + m[0].length });
   return out;
 }
+
+/** A phrase the reviewer saved for reuse; private to their account and synced across devices. */
+export interface UserPhrase {
+  id: string;
+  text: string;
+  use: PhraseUse;
+  createdAt: number;
+}
+
+/** The reviewer's own phrases for a set of uses, newest first, filtered by the search. */
+export function userPhrasesFor(mine: UserPhrase[], uses: PhraseUse[], query = ''): UserPhrase[] {
+  const q = query.trim().toLowerCase();
+  return mine.filter((ph) => uses.includes(ph.use) && (!q || ph.text.toLowerCase().includes(q))).sort((a, b) => b.createdAt - a.createdAt);
+}

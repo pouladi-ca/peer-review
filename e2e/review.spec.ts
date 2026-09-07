@@ -376,3 +376,40 @@ test('writing aids: phrases insert with a selected blank, evidence composes into
   await card.locator('.score-btn', { hasText: /^7$/ }).click();
   await expect(card.locator('.aids-callout')).toHaveCount(0);
 });
+
+test('writing aids: proposal vocabulary autocompletes, bias wording is noted, saved phrases return, guidance exports on request', async ({ page }) => {
+  await startWithSample(page);
+  await page.locator('.panel-tab', { hasText: 'Score' }).click();
+  const card = page.locator('.criterion').first();
+  const ta = card.locator('textarea').first();
+  // Autocomplete from the proposal's own words.
+  await ta.click();
+  await ta.pressSequentially('The role of exos', { delay: 20 });
+  const pop = page.locator('.vocab-pop');
+  await expect(pop).toBeVisible();
+  await expect(pop).toContainText(/exosom/i);
+  await page.keyboard.press('Tab');
+  await expect(ta).toHaveValue(/^The role of [Ee]xosom\w+$/);
+  await expect(pop).toHaveCount(0);
+  // A person-focused remark gets a gentle note with the reason.
+  await ta.fill('Impressive for a young investigator; the design is sound (p. 3).');
+  await expect(card.locator('.aids-notes .is-bias')).toContainText(/expectations for the person/);
+  // Save a selection as a phrase of your own; it appears under Yours and inserts.
+  await ta.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.indexOf('the design'), el.value.indexOf(' (p. 3)')));
+  await card.getByRole('button', { name: 'Phrases' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Phrasebook' });
+  await dialog.getByRole('button', { name: 'Save selection' }).click();
+  await expect(dialog.getByLabel('Phrase to save')).toHaveValue('the design is sound');
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(dialog.locator('.aids-mine')).toHaveCount(1);
+  await expect(dialog.locator('.aids-mine .aids-use')).toContainText('Yours');
+  await page.keyboard.press('Escape');
+  // Guidance is off by default in the export and appears when switched on.
+  await page.locator('.panel-tab', { hasText: 'Draft' }).click();
+  await expect(page.locator('.preview .pv-guide')).toHaveCount(0);
+  await page.getByLabel(/Include the framework/).check();
+  await expect(page.locator('.preview .pv-guide').first()).toBeVisible();
+  await expect(page.locator('.preview .pv-guide li').first()).not.toBeEmpty();
+  await page.getByLabel(/Include the framework/).uncheck();
+  await expect(page.locator('.preview .pv-guide')).toHaveCount(0);
+});

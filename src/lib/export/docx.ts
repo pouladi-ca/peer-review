@@ -1,5 +1,5 @@
 import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx';
-import type { Draft, DraftBullet } from '../draft';
+import type { Draft, DraftBullet, ExportOptions } from '../draft';
 
 function para(text: string, opts: { bold?: boolean; italics?: boolean; size?: number; spacingAfter?: number } = {}): Paragraph {
   return new Paragraph({
@@ -24,16 +24,27 @@ function multiline(text: string): Paragraph[] {
     .map((t) => para(t));
 }
 
-export async function draftToDocx(d: Draft, opts: { includeConfidential?: boolean } = {}): Promise<Blob> {
+/** The framework's description and guiding questions, set apart in italics. */
+function guide(description: string, prompts: string[] = []): Paragraph[] {
+  const out: Paragraph[] = [];
+  if (description) out.push(para(description, { italics: true, size: 20, spacingAfter: 60 }));
+  for (const p of prompts) out.push(new Paragraph({ children: [new TextRun({ text: p, italics: true, size: 20 })], bullet: { level: 0 }, spacing: { after: 40 } }));
+  if (out.length) out.push(para('', { spacingAfter: 60 }));
+  return out;
+}
+
+export async function draftToDocx(d: Draft, opts: ExportOptions = {}): Promise<Blob> {
   const children: Paragraph[] = [];
   children.push(new Paragraph({ text: `Review: ${d.title}`, heading: HeadingLevel.TITLE, alignment: AlignmentType.LEFT }));
   children.push(para(`${d.frameworkName}. Drafted ${new Date(d.generatedAt).toLocaleDateString()}.`, { italics: true, spacingAfter: 240 }));
+  if (opts.includeGuidance && d.guide.about) children.push(...guide(`How ${d.guide.agency} reviews: ${d.guide.about}`));
   children.push(new Paragraph({ text: d.labels.summary, heading: HeadingLevel.HEADING_1 }));
   children.push(...multiline(d.summary));
 
   for (const s of d.sections) {
-    if (s.empty) continue;
+    if (s.empty && !(opts.includeGuidance && s.guide)) continue;
     children.push(new Paragraph({ text: s.heading, heading: HeadingLevel.HEADING_1 }));
+    if (opts.includeGuidance && s.guide) children.push(...guide(s.guide.description, s.guide.prompts));
     if (s.scoreLine) children.push(para(s.scoreLine, { bold: true }));
     if (s.body) children.push(...multiline(s.body));
     children.push(...bullets('Strengths', s.strengths));
@@ -50,6 +61,7 @@ export async function draftToDocx(d: Draft, opts: { includeConfidential?: boolea
   }
 
   children.push(new Paragraph({ text: d.overall.heading, heading: HeadingLevel.HEADING_1 }));
+  if (opts.includeGuidance) children.push(...guide([d.guide.overall, d.guide.scaleHint].filter(Boolean).join(' ')));
   if (d.overall.scoreLine) children.push(para(d.overall.scoreLine, { bold: true }));
   if (d.overall.recommendation) children.push(para(`${d.overall.recommendationLabel} ${d.overall.recommendation}`, { bold: true }));
   if (d.overall.body) children.push(...multiline(d.overall.body));
@@ -61,6 +73,10 @@ export async function draftToDocx(d: Draft, opts: { includeConfidential?: boolea
   if (opts.includeConfidential && d.confidential) {
     children.push(new Paragraph({ text: 'Confidential comments to the program', heading: HeadingLevel.HEADING_1 }));
     children.push(...multiline(d.confidential));
+  }
+  if (opts.includeGuidance && d.guide.guidance.length) {
+    children.push(new Paragraph({ text: `${d.guide.agency} guidance to reviewers`, heading: HeadingLevel.HEADING_1 }));
+    for (const g of d.guide.guidance) children.push(new Paragraph({ children: [new TextRun({ text: g, italics: true })], bullet: { level: 0 }, spacing: { after: 60 } }));
   }
 
   const doc = new Document({

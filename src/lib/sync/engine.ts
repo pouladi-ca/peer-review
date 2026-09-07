@@ -31,6 +31,8 @@ export interface SyncHooks {
   onAccountChanged(frameworks: CustomFrameworkDef[]): void;
   /** The reviewer's framework menu preferences changed on another device. */
   onPrefsChanged(prefs: FrameworkPrefs): void;
+  /** Another per-account preference record changed on another device (see PREF_SETTINGS). */
+  onAccountPref(key: string, data: unknown): void;
   onStatus(status: SyncStatus): void;
   /** The review currently open in the workspace, if any. */
   currentReview(): Review | null;
@@ -38,6 +40,10 @@ export interface SyncHooks {
 
 /** Account record holding the reviewer's framework menu preferences. */
 export const PREFS_KEY = 'prefs:frameworks';
+/** Account record holding the reviewer's saved phrases. */
+export const PHRASES_KEY = 'prefs:phrases';
+/** Per-account preference records and the local setting each is cached under. */
+export const PREF_SETTINGS: Record<string, string> = { [PREFS_KEY]: 'frameworkPrefs', [PHRASES_KEY]: 'userPhrases' };
 
 const PUSH_DEBOUNCE_MS = 700;
 const POLL_MS = 5000;
@@ -262,17 +268,20 @@ export class SyncEngine {
       const defs = await getSetting<CustomFrameworkDef[]>('customFrameworks', []);
       const map = new Map(defs.map((d) => [d.id, d]));
       let prefs: FrameworkPrefs | undefined;
+      const otherPrefs: [string, unknown][] = [];
       for (const rec of changes.account) {
         const isFramework = rec.key.startsWith('framework:');
-        if (!isFramework && rec.key !== PREFS_KEY) continue;
+        if (!isFramework && !(rec.key in PREF_SETTINGS)) continue;
         const mineRow = await db.syncstate.get(`account|${rec.key}`);
         if (mineRow && rec.updated_at < mineRow.ts) continue;
         if (isFramework) {
           const id = rec.key.slice('framework:'.length);
           if (rec.deleted) map.delete(id);
           else map.set(id, rec.data as CustomFrameworkDef);
-        } else {
+        } else if (rec.key === PREFS_KEY) {
           prefs = rec.deleted ? EMPTY_PREFS : { ...EMPTY_PREFS, ...(rec.data as Partial<FrameworkPrefs>) };
+        } else {
+          otherPrefs.push([rec.key, rec.deleted ? null : rec.data]);
         }
         await db.syncstate.put({ id: `account|${rec.key}`, reviewId: '', key: rec.key, ts: rec.updated_at });
       }
@@ -282,6 +291,10 @@ export class SyncEngine {
       if (prefs) {
         await setSetting('frameworkPrefs', prefs);
         this.hooks.onPrefsChanged(prefs);
+      }
+      for (const [key, data] of otherPrefs) {
+        await setSetting(PREF_SETTINGS[key], data);
+        this.hooks.onAccountPref(key, data);
       }
     }
 

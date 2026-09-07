@@ -1,6 +1,8 @@
 import { criterionScale, fieldSpec, recommendationSpec, scoreLabel, type Framework } from './frameworks';
 import { composeDraft, sectionPlainText } from './draft';
 import { calibration } from './writing/intensity';
+import { lintApplicantFacing, lintRationale, repeatedPhrases } from './writing/lints';
+import { biasCheck } from './writing/bias';
 import type { PanelTab } from './store';
 import type { Review } from './types';
 
@@ -123,6 +125,34 @@ export function computeReadiness(review: Review, fw: Framework): Readiness {
   {
     const cal = review.overall.comment ? calibration(review.overall.comment, fw.overall.scale, review.overall.score, 'the overall score') : null;
     if (cal) suggestions.push({ id: 'cal-overall', kind: 'suggestion', text: `The overall rationale reads ${cal.direction} than the score`, tab: 'score' });
+  }
+
+  // Writing lints: specificity, contradictions, blanks, filler, boilerplate, and bias.
+  const boxes: Record<string, string> = {};
+  for (const c of core) {
+    const s = review.scores[c.id];
+    if (!s?.comment?.trim()) continue;
+    boxes[c.short] = s.comment;
+    const hasEvidence = review.annotations.some((a) => a.criterionId === c.id);
+    for (const l of lintRationale(s.comment, { hasEvidence, label: c.short })) suggestions.push({ id: `lint-${c.id}-${l.id}`, kind: 'suggestion', text: l.text, tab: 'score' });
+    for (const b of biasCheck(s.comment)) suggestions.push({ id: `bias-${c.id}-${b.id}`, kind: 'suggestion', text: `${c.short}: “${b.phrase}”. ${b.reason}`, tab: 'score' });
+  }
+  if (review.overall.comment.trim()) {
+    boxes[overallSpec.label] = review.overall.comment;
+    for (const l of lintRationale(review.overall.comment, { hasEvidence: true, label: overallSpec.label })) suggestions.push({ id: `lint-overall-${l.id}`, kind: 'suggestion', text: l.text, tab: 'score' });
+    if (fw.form?.overallComment) for (const l of lintApplicantFacing(review.overall.comment, overallSpec.label)) suggestions.push({ id: `lint-overall-${l.id}`, kind: 'suggestion', text: l.text, tab: 'score' });
+    for (const b of biasCheck(review.overall.comment)) suggestions.push({ id: `bias-overall-${b.id}`, kind: 'suggestion', text: `${overallSpec.label}: “${b.phrase}”. ${b.reason}`, tab: 'score' });
+  }
+  for (const [key, text] of [['summary', review.draft.summary], ['additional', review.draft.additional]] as const) {
+    if (!text.trim()) continue;
+    const label = key === 'summary' ? summarySpec.label : additionalSpec.label;
+    for (const l of lintRationale(text, { hasEvidence: true, label })) suggestions.push({ id: `lint-${key}-${l.id}`, kind: 'suggestion', text: l.text, tab: 'draft' });
+    for (const b of biasCheck(text)) suggestions.push({ id: `bias-${key}-${b.id}`, kind: 'suggestion', text: `${label}: “${b.phrase}”. ${b.reason}`, tab: 'draft' });
+  }
+  for (const l of repeatedPhrases(boxes)) suggestions.push({ id: l.id, kind: 'suggestion', text: l.text, tab: 'score' });
+  // Blanks left from a phrase would go out in braces: a blocker, not a nudge.
+  for (let i = suggestions.length - 1; i >= 0; i--) {
+    if (suggestions[i].id.endsWith('-blank')) blockers.push({ ...suggestions.splice(i, 1)[0], kind: 'blocker' });
   }
 
   // Balance and constructiveness nudges.

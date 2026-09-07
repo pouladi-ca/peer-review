@@ -22,6 +22,8 @@ export interface DraftSection {
   empty: boolean;
   /** The funder's character limit for this box, if any. */
   maxChars?: number;
+  /** What the framework asks under this criterion, for the optional guidance export. */
+  guide?: { description: string; prompts: string[] };
 }
 
 export interface Draft {
@@ -39,6 +41,8 @@ export interface Draft {
   labels: { summary: string; additional: string };
   /** Character limits of the free-text boxes, when the funder sets them. */
   limits: { summary?: number; additional?: number; overallComment?: number };
+  /** The framework's own words, exported only when the reviewer asks for them. */
+  guide: { agency: string; about: string; overall: string; scaleHint?: string; guidance: string[] };
   stats: { strengths: number; weaknesses: number; questions: number; notes: number; major: number };
 }
 
@@ -108,6 +112,7 @@ export function composeDraft(review: Review, fw: Framework): Draft {
       scoreLine: label && !c?.unscored ? `${scale?.kind === 'numeric' ? 'Score' : 'Rating'}: ${label}` : undefined,
       body,
       maxChars: c?.maxChars,
+      guide: c ? { description: c.description, prompts: c.prompts } : undefined,
       strengths: strengths.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
       weaknesses: weaknesses.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
       questions: questions.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
@@ -162,6 +167,7 @@ export function composeDraft(review: Review, fw: Framework): Draft {
     confidential: review.draft.confidential.trim(),
     labels: { summary: summarySpec.label, additional: additionalSpec.label },
     limits: { summary: summarySpec.maxChars, additional: additionalSpec.maxChars, overallComment: overallSpec.maxChars },
+    guide: { agency: fw.agency, about: fw.blurb, overall: fw.overall.description, scaleHint: fw.overall.scale.kind === 'numeric' ? fw.overall.scale.hint : undefined, guidance: fw.guidance },
     stats: {
       strengths: all.filter((a) => a.kind === 'strength').length,
       weaknesses: all.filter((a) => a.kind === 'weakness').length,
@@ -172,14 +178,31 @@ export function composeDraft(review: Review, fw: Framework): Draft {
   };
 }
 
-export function draftToMarkdown(d: Draft, opts: { includeConfidential?: boolean } = {}): string {
+export interface ExportOptions {
+  includeConfidential?: boolean;
+  /** Also print what the framework asks under each heading, and the agency's guidance to reviewers. */
+  includeGuidance?: boolean;
+}
+
+/** A blockquote with the framework's description and guiding questions for a heading. */
+function guideLines(description: string, prompts: string[] = []): string[] {
+  const out: string[] = [];
+  if (description) out.push(`> ${description}`);
+  for (const p of prompts) out.push(`> - ${p}`);
+  if (out.length) out.push('');
+  return out;
+}
+
+export function draftToMarkdown(d: Draft, opts: ExportOptions = {}): string {
   const out: string[] = [];
   out.push(`# Review: ${d.title}`);
   out.push(`*${d.frameworkName}. Drafted ${new Date(d.generatedAt).toLocaleDateString()}.*`, '');
+  if (opts.includeGuidance && d.guide.about) out.push(...guideLines(`How ${d.guide.agency} reviews: ${d.guide.about}`));
   out.push(`## ${d.labels.summary}`, '', d.summary, '');
   for (const s of d.sections) {
-    if (s.empty) continue;
+    if (s.empty && !(opts.includeGuidance && s.guide)) continue;
     out.push(`## ${s.heading}`);
+    if (opts.includeGuidance && s.guide) out.push(...guideLines(s.guide.description, s.guide.prompts));
     if (s.scoreLine) out.push(`**${s.scoreLine}**`, '');
     if (s.body) out.push(s.body, '');
     const block = (title: string, list: DraftBullet[]) => {
@@ -199,16 +222,24 @@ export function draftToMarkdown(d: Draft, opts: { includeConfidential?: boolean 
     out.push('');
   }
   out.push(`## ${d.overall.heading}`);
+  if (opts.includeGuidance) out.push(...guideLines([d.guide.overall, d.guide.scaleHint].filter(Boolean).join(' ')));
   if (d.overall.scoreLine) out.push(`**${d.overall.scoreLine}**`, '');
   if (d.overall.recommendation) out.push(`**${d.overall.recommendationLabel}** ${d.overall.recommendation}`, '');
   if (d.overall.body) out.push(d.overall.body, '');
   if (d.additionalComments) out.push(`## ${d.labels.additional}`, '', d.additionalComments, '');
   if (opts.includeConfidential && d.confidential) out.push('## Confidential comments to the program', '', d.confidential, '');
+  if (opts.includeGuidance && d.guide.guidance.length) {
+    out.push(`## ${d.guide.agency} guidance to reviewers`, '');
+    for (const g of d.guide.guidance) out.push(`- ${g}`);
+    out.push('');
+  }
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
 
-export function draftToPlainText(d: Draft, opts: { includeConfidential?: boolean } = {}): string {
+export function draftToPlainText(d: Draft, opts: ExportOptions = {}): string {
   return draftToMarkdown(d, opts)
+    .replace(/^> - /gm, '    • ')
+    .replace(/^> /gm, '    ')
     .replace(/^#+\s*/gm, '')
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/^\*(.+?)\*$/gm, '$1')
