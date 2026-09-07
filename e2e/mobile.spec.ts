@@ -150,6 +150,14 @@ test('on a phone, note comments autocomplete with tappable chips and the categor
   await expect(comment).toHaveValue(/^[Ee]xosom\w+$/);
   await comment.press('Enter');
   await expect(comment).not.toBeFocused();
+  // Every text control is at least 16px, so iOS Safari never zooms the page on focus.
+  const small = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('input, textarea, select')]
+      .filter((el) => !['checkbox', 'radio', 'range', 'file', 'hidden'].includes((el as HTMLInputElement).type) && el.offsetParent !== null)
+      .map((el) => ({ tag: el.tagName, cls: el.className, size: parseFloat(getComputedStyle(el).fontSize) }))
+      .filter((x) => x.size < 16),
+  );
+  expect(small).toEqual([]);
   // The category menu is a real target and works.
   const select = page.locator('.note.is-selected .note-foot select');
   const box = (await select.boundingBox())!;

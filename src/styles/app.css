@@ -4359,3 +4359,21 @@ mark.rhl.has-comment::after {
     padding-bottom: 96px;
   }
 }
+
+/* ---------- no auto-zoom on iOS ---------- */
+/* Safari on iOS zooms the page when a focused control's font is under 16px and leaves it
+   zoomed afterwards. On touch screens every text field, box, and menu uses 16px. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea,
+  .ta,
+  .note-comment,
+  .login-field input,
+  .pw-field input,
+  .aids-search input,
+  .aids-save textarea,
+  .admin-invite input[type='email'] {
+    font-size: 16px !important; /* wins over every size a specific control sets for desktop */
+  }
+}
