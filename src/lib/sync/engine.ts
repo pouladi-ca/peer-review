@@ -14,7 +14,7 @@ import { api, ApiError, type ChangesIn, type ReviewOut } from '../api';
 import { db, getSetting, setSetting, type OutboxRow } from '../db';
 import { EMPTY_PREFS, type CustomFrameworkDef, type FrameworkPrefs } from '../frameworks';
 import type { Review } from '../types';
-import { applyRecord, diffRecords, isMergeKey } from './records';
+import { applyRecord, diffRecords, shouldApply } from './records';
 
 export type SyncState = 'idle' | 'syncing' | 'offline' | 'error' | 'off';
 
@@ -237,20 +237,22 @@ export class SyncEngine {
       const seed: Review = base ?? emptyReview(reviewId, createdMeta?.created_at ?? Date.now());
       const local = await db.syncstate.where('reviewId').equals(reviewId).toArray();
       const localTs = new Map(local.map((s) => [s.key, s.ts]));
-      let touched = false;
-      const next = produce(seed, (draft) => {
-        for (const rec of recs) {
-          const mine = localTs.get(rec.key) ?? 0;
-          if (!isMergeKey(rec.key) && rec.updated_at < mine) continue; // we have something newer
-          applyRecord(draft, rec.key, rec.data, rec.deleted);
-          touched = true;
-        }
-        if (touched) draft.updatedAt = Math.max(draft.updatedAt, ...recs.map((r) => r.updated_at));
+      const applicable = recs.filter((rec) => shouldApply(rec.key, rec.updated_at, localTs.get(rec.key)));
+      if (!applicable.length && base) {
+        await db.syncstate.bulkPut(recs.map((r) => ({ id: `${reviewId}|${r.key}`, reviewId, key: r.key, ts: Math.max(r.updated_at, localTs.get(r.key) ?? 0) })));
+        continue;
+      }
+      // The reviewer may have typed during the awaits above: merge into the freshest state,
+      // with no await between reading it and handing the result back.
+      const live = this.hooks.currentReview();
+      const fresh = live && live.id === reviewId ? live : seed;
+      const next = produce(fresh, (draft) => {
+        for (const rec of applicable) applyRecord(draft, rec.key, rec.data, rec.deleted);
+        if (applicable.length) draft.updatedAt = Math.max(draft.updatedAt, ...applicable.map((r) => r.updated_at));
       });
-      if (!touched && base) continue;
+      this.hooks.onReviewChanged(reviewId, next);
       await db.syncstate.bulkPut(recs.map((r) => ({ id: `${reviewId}|${r.key}`, reviewId, key: r.key, ts: Math.max(r.updated_at, localTs.get(r.key) ?? 0) })));
       await db.reviews.put(next);
-      this.hooks.onReviewChanged(reviewId, next);
     }
 
     // Reviews that exist on the server but carry no record changes this round (rare) are

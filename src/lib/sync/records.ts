@@ -23,6 +23,7 @@ export function reviewToRecords(r: Review): Map<string, unknown> {
   m.set('draft:additional', r.draft.additional);
   m.set('draft:confidential', r.draft.confidential);
   m.set('overall', r.overall);
+  if (r.panel) m.set('panel', r.panel);
   for (const [id, s] of Object.entries(r.scores)) m.set(`score:${id}`, s);
   for (const [id, c] of Object.entries(r.checklist)) m.set(`check:${id}`, c);
   for (const a of r.annotations) m.set(`ann:${a.id}`, a);
@@ -46,6 +47,17 @@ export function diffRecords(prev: Review | null, next: Review): RecordChange[] {
 }
 
 /** Apply one record to a review draft (mutating; use inside immer). */
+/**
+ * Whether a record pulled from the server should overwrite what this device holds.
+ * Merge keys (visited pages, active time) always combine. Anything else applies only when
+ * strictly newer: an equal timestamp is this device's own write echoed back, and applying
+ * it would revert keystrokes typed since it was pushed.
+ */
+export function shouldApply(key: string, remoteTs: number, localTs: number | undefined): boolean {
+  if (isMergeKey(key)) return true;
+  return remoteTs > (localTs ?? 0);
+}
+
 export function applyRecord(r: Review, key: string, data: unknown, deleted: boolean): void {
   const [kind, id] = splitKey(key);
   switch (kind) {
@@ -67,6 +79,9 @@ export function applyRecord(r: Review, key: string, data: unknown, deleted: bool
       return;
     case 'overall':
       if (!deleted && data && typeof data === 'object') r.overall = data as Review['overall'];
+      return;
+    case 'panel':
+      if (!deleted && data && typeof data === 'object') r.panel = data as Review['panel'];
       return;
     case 'score':
       if (deleted) delete r.scores[id];

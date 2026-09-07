@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { produce } from 'immer';
-import { applyRecord, diffRecords, reviewToRecords } from './records';
+import { applyRecord, diffRecords, reviewToRecords, shouldApply } from './records';
 import { emptyReview } from './engine';
 import type { Annotation } from '../types';
 
@@ -51,5 +51,15 @@ describe('record mapping', () => {
     expect(next.title).toBe('Renamed');
     expect(next.frameworkId).toBe('nsf');
     expect(next.annotations.find((a) => a.id === 'a9')).toBeUndefined();
+  });
+});
+
+describe('shouldApply', () => {
+  it('skips this device\'s own echo and older records, applies newer ones, always merges merge keys', () => {
+    expect(shouldApply('ann:a1', 100, 100)).toBe(false);
+    expect(shouldApply('ann:a1', 90, 100)).toBe(false);
+    expect(shouldApply('ann:a1', 101, 100)).toBe(true);
+    expect(shouldApply('ann:a1', 1, undefined)).toBe(true);
+    expect(shouldApply('visited:d1', 1, 100)).toBe(true);
   });
 });
