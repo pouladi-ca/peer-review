@@ -28,10 +28,31 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+const SHARED = 'panelist-shared';
+
+/** A PDF shared to the installed app (Web Share Target) is parked in a cache and the app opens it. */
+async function receiveShare(request) {
+  const form = await request.formData();
+  const files = form.getAll('pdf').filter((f) => f && typeof f === 'object' && 'size' in f);
+  if (!files.length) return Response.redirect('/', 303);
+  const cache = await caches.open(SHARED);
+  const keys = [];
+  for (const file of files) {
+    const key = `/shared/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    await cache.put(key, new Response(file, { headers: { 'Content-Type': 'application/pdf', 'X-File-Name': encodeURIComponent(file.name || 'application.pdf') } }));
+    keys.push(key);
+  }
+  return Response.redirect(`/?shared=${encodeURIComponent(keys.join(','))}`, 303);
+}
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
-  if (request.method !== 'GET') return;
   const url = new URL(request.url);
+  if (request.method === 'POST' && url.origin === self.location.origin && url.pathname === '/share') {
+    event.respondWith(receiveShare(request));
+    return;
+  }
+  if (request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api') || url.pathname.startsWith('/healthz')) return;
 

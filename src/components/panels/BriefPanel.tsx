@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useFramework } from '../../hooks/useFramework';
-import { ChevronDown, Compass, Gauge, Sparkles, Target } from 'lucide-react';
+import { ChevronDown, Compass, FlaskConical, Gauge, Sparkles, Target } from 'lucide-react';
+import { claimsFromPages, claimsFromReflow } from '../../lib/analyze/claims';
+import { rectsForQuote } from '../../lib/reflow/locate';
 import { useStore, selectActiveDoc } from '../../lib/store';
 import { computeProgress } from '../../lib/progress';
 import { plural } from '../../lib/format';
@@ -29,6 +31,17 @@ export function BriefPanel() {
   const totalWords = facts.words ?? 0;
   const readMinutes = Math.max(1, Math.round(totalWords / 220));
   const aimsEntry = doc?.outline.find((o) => /aims?|objectives?/i.test(o.title));
+  const reflowDoc = useStore((s) => (doc ? s.reflow[doc.id]?.doc : undefined));
+  const viewMode = useStore((s) => s.viewMode);
+  const claims = useMemo(() => (reflowDoc ? claimsFromReflow(reflowDoc) : doc?.status === 'ready' ? claimsFromPages(doc.pages) : []), [reflowDoc, doc]);
+  const [claimsOpen, setClaimsOpen] = useState(false);
+  const goToClaim = (c: (typeof claims)[number]) => {
+    if (!doc) return;
+    if (viewMode === 'read' && c.blockId) return useStore.getState().jumpTo({ docId: doc.id, page: c.page, blockId: c.blockId });
+    const pageText = doc.pages[c.page - 1];
+    const rect = pageText ? rectsForQuote(pageText, c.sentence.slice(0, 80))[0] : undefined;
+    useStore.getState().jumpTo({ docId: doc.id, page: c.page, rect });
+  };
 
   const setFact = (key: keyof QuickFacts, value: string) =>
     update((r) => {
@@ -93,6 +106,43 @@ export function BriefPanel() {
           {facts.references ? <span>{plural(facts.references, 'reference')}</span> : null}
         </div>
       </section>
+
+      {claims.length > 0 && doc && (
+        <section className="card">
+          <button type="button" className="card-title card-toggle" onClick={() => setClaimsOpen((v) => !v)} aria-expanded={claimsOpen}>
+            <FlaskConical size={14} /> Preliminary data
+            <span className="muted small">{plural(claims.length, 'claim')}</span>
+            <ChevronDown size={14} className={`chev ${claimsOpen ? 'is-open' : ''}`} />
+          </button>
+          {claimsOpen && (
+            <>
+              <p className="card-hint">Every sentence where the applicants say they have already shown something, with the figure it leans on. Worth a sceptical look.</p>
+              <ul className="claims" aria-label="Preliminary data claims">
+                {claims.map((c) => (
+                  <li key={c.id}>
+                    <button type="button" className="claim" onClick={() => goToClaim(c)} title={`Go to p. ${c.page}`}>
+                      <span className="claim-text">{c.sentence}</span>
+                      <span className="claim-meta">
+                        p. {c.page}
+                        {c.figureLabels.map((l) => (
+                          <span key={l} className="chip chip-quiet">
+                            {l}
+                          </span>
+                        ))}
+                      </span>
+                    </button>
+                    {c.figures.length > 0 && (
+                      <button type="button" className="link claim-fig" onClick={() => useStore.getState().openFigure(doc.id, c.figures[0])}>
+                        Open figure
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
 
       <section className="card">
         <div className="card-title">

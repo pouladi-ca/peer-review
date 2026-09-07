@@ -16,6 +16,7 @@ from .db import Database
 from .users import User
 
 MAX_TRACKED_IPS = 10_000
+SESSION_TOUCH_MS = 10 * 60 * 1000
 
 
 def client_ip(request: Request) -> str:
@@ -92,8 +93,24 @@ class SessionAuth:
         self.limiter = RateLimiter()
         self._serializer = URLSafeSerializer(config.session_secret, salt="pl-session")
 
-    def issue_token(self, user: User) -> str:
-        return self._serializer.dumps({"uid": user.id, "gen": user.generation, "iat": int(time.time())})
+    def issue_token(self, user: User, session_id: str) -> str:
+        return self._serializer.dumps({"uid": user.id, "sid": session_id, "gen": user.generation, "iat": int(time.time())})
+
+    def sign_in(self, user: User, request: Request, response: Response) -> None:
+        """Start a session for a device and set its cookie."""
+        with self.db.connect() as conn:
+            session = users.create_session(conn, user.id, request.headers.get("user-agent", ""))
+        self.set_cookie(response, self.issue_token(user, session.id))
+        request.state.session_id = session.id
+
+    def session_id(self, request: Request) -> str | None:
+        """The current request's session id, if its token is valid."""
+        try:
+            payload = self._serializer.loads(request.cookies.get(COOKIE_NAME) or "")
+        except BadSignature:
+            return None
+        sid = payload.get("sid") if isinstance(payload, dict) else None
+        return sid if isinstance(sid, str) else None
 
     def user_for_token(self, token: str | None) -> User | None:
         if not token:
@@ -108,12 +125,20 @@ class SessionAuth:
         if not isinstance(issued_at, int) or not 0 <= time.time() - issued_at <= COOKIE_MAX_AGE:
             return None
         uid = payload.get("uid")
-        if not isinstance(uid, str):
+        sid = payload.get("sid")
+        if not isinstance(uid, str) or not isinstance(sid, str):
             return None
         with self.db.connect(write=False) as conn:
             user = users.get(conn, uid)
+            session = users.get_session(conn, sid)
         if user is None or user.disabled or user.generation != payload.get("gen"):
             return None
+        if session is None or session.revoked or session.user_id != uid:
+            return None
+        # Keep "last seen" roughly current without a write on every request.
+        if time.time() * 1000 - session.last_seen_at > SESSION_TOUCH_MS:
+            with self.db.connect() as conn:
+                users.touch_session(conn, sid)
         return user
 
     def set_cookie(self, response: Response, token: str) -> None:

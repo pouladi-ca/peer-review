@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Lock, Mail } from 'lucide-react';
+import { Fingerprint, Lock, Mail } from 'lucide-react';
+import { passkeysSupported, signWithPasskey } from '../lib/webauthn';
 import { api, ApiError } from '../lib/api';
 import { useStore } from '../lib/store';
 import { Wordmark } from './ui';
@@ -10,6 +11,8 @@ export function Login() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const canPasskey = passkeysSupported();
   const emailInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
 
@@ -38,6 +41,23 @@ export function Login() {
     }
   };
 
+  const withPasskey = async () => {
+    if (passkeyBusy) return;
+    setPasskeyBusy(true);
+    setError(null);
+    try {
+      const { challengeId, options } = await api.passkeys.loginOptions(email.trim());
+      const credential = await signWithPasskey(options);
+      const me = await api.passkeys.login(challengeId, credential);
+      await useStore.getState().signedIn(me);
+    } catch (err) {
+      if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'AbortError')) return; // the person cancelled
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not reach the server.');
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
+
   return (
     <div className="login">
       <form className={`login-card ${shake ? 'is-shake' : ''}`} onSubmit={submit}>
@@ -59,6 +79,11 @@ export function Login() {
         <button type="submit" className="btn btn-primary login-btn" disabled={busy || !password || !email}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
+        {canPasskey && (
+          <button type="button" className="btn login-btn login-passkey" onClick={withPasskey} disabled={passkeyBusy}>
+            <Fingerprint size={15} /> {passkeyBusy ? 'Waiting for your passkey…' : 'Sign in with a passkey'}
+          </button>
+        )}
         <p className="login-foot">Applications are confidential. Each reviewer sees only their own, and nothing leaves this server.</p>
       </form>
     </div>

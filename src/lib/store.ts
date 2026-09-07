@@ -115,6 +115,10 @@ interface State {
   frameworkEditor: { open: boolean; id?: string };
   /** The meeting view is open over the workspace. */
   meetingOpen: boolean;
+  /** The "send PDFs from your phone" dialog is open. */
+  inboxOpen: boolean;
+  /** The passkeys and devices dialog is open. */
+  securityOpen: boolean;
   /** null while the session is being checked, then whether the reviewer is signed in. */
   authed: boolean | null;
   /** The signed-in account; null until known. */
@@ -165,6 +169,12 @@ interface State {
   openFrameworkEditor(id?: string): void;
   openMeeting(): void;
   closeMeeting(): void;
+  openInbox(): void;
+  closeInbox(): void;
+  openSecurity(): void;
+  closeSecurity(): void;
+  /** Open a review that may still be arriving through sync (from a share-sheet post). */
+  openWhenSynced(id: string): Promise<void>;
   updatePanel(patch: Partial<PanelNotes>): void;
   logDiscussion(who: string, text: string): void;
   /** Record the score after discussion, with the reason, and log it. */
@@ -503,6 +513,8 @@ export const useStore = create<State>((set, get) => {
     frameworksVersion: 0,
     frameworkEditor: { open: false },
     meetingOpen: false,
+    inboxOpen: false,
+    securityOpen: false,
     authed: null,
     me: null,
     adminOpen: false,
@@ -996,6 +1008,23 @@ export const useStore = create<State>((set, get) => {
       const next = get().userPhrases.filter((p) => p.id !== id);
       set({ userPhrases: next });
       await Promise.all([setSetting('userPhrases', { phrases: next }), ensureEngine().recordAccount(PHRASES_KEY, { phrases: next })]);
+    },
+    openSecurity: () => set({ securityOpen: true, paletteOpen: false, helpOpen: false }),
+    closeSecurity: () => set({ securityOpen: false }),
+    openInbox: () => set({ inboxOpen: true, paletteOpen: false, helpOpen: false }),
+    closeInbox: () => set({ inboxOpen: false }),
+    async openWhenSynced(id) {
+      for (let i = 0; i < 40; i++) {
+        if (await db.reviews.get(id)) {
+          await loadReviewList(set);
+          await get().openReview(id);
+          return;
+        }
+        if (i === 0) get().notify('Fetching the review you sent…', 'info');
+        await ensureEngine().sync();
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      get().notify('That review has not reached this device yet. Pull to sync and try again.', 'error');
     },
     openMeeting: () => set({ meetingOpen: true, paletteOpen: false, helpOpen: false }),
     closeMeeting: () => set({ meetingOpen: false }),

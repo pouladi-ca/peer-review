@@ -21,10 +21,10 @@ test('the app is gated behind login', async ({ page }) => {
   await expect(page.getByLabel('Password')).toBeVisible();
   await page.getByLabel('Email').fill('reviewer@example.org');
   await page.getByLabel('Password').fill('wrong');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText(/not right/i);
   await page.getByLabel('Password').fill('e2e-password');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: /Read closely/i })).toBeVisible();
   // The session persists across a reload.
   await page.reload();
@@ -438,4 +438,87 @@ test('meeting mode: a panel card with a drafted pitch, a discussion log, and the
   await expect(meeting.getByLabel('Discussion log')).toContainText(/Score after discussion: 4 Very Good/);
   await page.keyboard.press('Escape');
   await expect(meeting).toHaveCount(0);
+});
+
+test('a PDF posted from a phone share sheet becomes a review that /?open= brings up', async ({ page, request }) => {
+  await login(page);
+  await page.locator('.account-btn').click();
+  await page.getByRole('menuitem', { name: /Send PDFs from your phone/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Send PDFs from your phone' });
+  await dialog.getByRole('button', { name: /Create token/ }).click();
+  const token = (await dialog.locator('.temp-pass-code').textContent())!.trim();
+  expect(token.length).toBeGreaterThan(20);
+  await page.keyboard.press('Escape');
+  // What the iOS Shortcut sends: the raw PDF with the bearer token, no cookie, no origin.
+  const pdf = await (await import('node:fs/promises')).readFile('public/sample-application.pdf');
+  const r = await request.post('/api/inbox?name=Shared%20from%20phone.pdf', { data: pdf, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/pdf' } });
+  expect(r.ok()).toBe(true);
+  const { reviewId, url } = (await r.json()) as { reviewId: string; url: string };
+  expect(url).toContain(`/?open=${reviewId}`);
+  await page.goto(`/?open=${reviewId}`);
+  await expect(page.locator('.title-input')).toHaveValue('Shared from phone', { timeout: 30_000 });
+  await expect(page.locator('.pdf-canvas').first()).toBeVisible({ timeout: 30_000 });
+});
+
+test('a passkey can be added, then used to sign in, and devices can be signed out one at a time', async ({ page }) => {
+  // A virtual authenticator stands in for Face ID or Touch ID.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('WebAuthn.enable');
+  await cdp.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
+  await login(page);
+  await page.locator('.account-btn').click();
+  await page.getByRole('menuitem', { name: /Passkeys and devices/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Passkeys and devices' });
+  await expect(dialog.getByLabel('Signed-in devices').locator('li.is-current')).toHaveCount(1);
+  await dialog.getByLabel('Passkey name').fill('Test laptop');
+  await dialog.getByRole('button', { name: /Add a passkey for this device/ }).click();
+  await expect(dialog.getByLabel('Passkeys')).toContainText('Test laptop');
+  await page.keyboard.press('Escape');
+  // Sign out, then back in with the passkey alone.
+  await page.locator('.account-btn').click();
+  await page.getByRole('menuitem', { name: 'Sign out of this device' }).click();
+  await expect(page.getByLabel('Password')).toBeVisible();
+  await page.getByRole('button', { name: /Sign in with a passkey/ }).click();
+  await expect(page.locator('.library-main')).toBeVisible({ timeout: 15_000 });
+  // The old session is gone from the list; ending a session from another device works.
+  const other = await page.context().browser()!.newContext();
+  const otherPage = await other.newPage();
+  await login(otherPage);
+  await page.locator('.account-btn').click();
+  await page.getByRole('menuitem', { name: /Passkeys and devices/ }).click();
+  const devices = page.getByRole('dialog', { name: 'Passkeys and devices' }).getByLabel('Signed-in devices');
+  await expect(devices.locator('li.is-current')).toHaveCount(1);
+  const before = await devices.locator('li').count();
+  expect(before).toBeGreaterThanOrEqual(2); // earlier tests signed in too; the newest non-current row is the other browser
+  await devices.locator('li:not(.is-current)').first().getByRole('button', { name: /Sign out/ }).click();
+  await expect(devices.locator('li')).toHaveCount(before - 1);
+  await otherPage.reload();
+  await expect(otherPage.getByLabel('Password')).toBeVisible();
+  await other.close();
+  // Remove the passkey to leave the account as it was.
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('dialog', { name: 'Passkeys and devices' }).getByRole('button', { name: /Remove passkey Test laptop/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Passkeys and devices' }).getByLabel('Passkeys')).toHaveCount(0);
+});
+
+test('the brief indexes preliminary-data claims and the reading view can read aloud', async ({ page }) => {
+  await startWithSample(page);
+  const card = page.locator('.card', { hasText: 'Preliminary data' });
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await card.locator('.card-toggle').click();
+  const claims = card.getByLabel('Preliminary data claims');
+  await expect(claims.locator('li').first()).toContainText(/We have found|preliminary/i);
+  await claims.locator('.claim').first().click();
+  await expect(page.locator('.title-input')).toBeVisible();
+  // Read aloud lives in the reading view; the control is present wherever speech is supported.
+  await page.getByRole('radio', { name: 'Read' }).click();
+  await expect(page.locator('.read-content')).toBeVisible({ timeout: 60_000 });
+  const supported = await page.evaluate(() => 'speechSynthesis' in window);
+  if (supported) {
+    await page.getByRole('button', { name: 'Read aloud from here' }).click();
+    await expect(page.getByRole('group', { name: 'Read aloud' })).toBeVisible();
+    await expect(page.locator('.read-content .is-speaking')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Stop reading' }).click();
+    await expect(page.locator('.read-content .is-speaking')).toHaveCount(0);
+  }
 });

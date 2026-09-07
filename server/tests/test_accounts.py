@@ -98,3 +98,34 @@ def test_duplicate_and_bad_emails_are_rejected(client: TestClient) -> None:
     assert client.post("/api/admin/users", json={"email": "not-an-email"}, headers=same_origin()).status_code == 400
     invite(client, "dup@example.org")
     assert client.post("/api/admin/users", json={"email": "Dup@Example.org"}, headers=same_origin()).status_code == 409
+
+
+def test_sessions_are_listed_and_can_be_ended_per_device(client: TestClient, anon: TestClient) -> None:
+    mine = client.get("/api/sessions").json()["sessions"]
+    assert len(mine) == 1 and mine[0]["current"] is True and "·" in mine[0]["label"]
+    # A second device signs in.
+    other = TestClient(client.app, base_url="http://testserver", headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"})
+    assert other.post("/api/login", json={"email": EMAIL, "password": PASSWORD}, headers=same_origin()).status_code == 200
+    listed = client.get("/api/sessions").json()["sessions"]
+    assert len(listed) == 2
+    phone = next(s for s in listed if not s["current"])
+    assert phone["label"] == "iPhone · Safari"
+    # Ending the phone's session signs that device out and nothing else.
+    assert client.delete(f"/api/sessions/{phone['id']}", headers=same_origin()).status_code == 200
+    assert other.get("/api/me").status_code == 401
+    assert client.get("/api/me").status_code == 200
+    # Logging out ends the current session for good, even if the cookie were replayed.
+    cookie = dict(client.cookies)
+    client.post("/api/logout", headers=same_origin())
+    client.cookies.update(cookie)
+    assert client.get("/api/me").status_code == 401
+
+
+def test_passkey_options_need_a_session_but_login_options_do_not(client: TestClient) -> None:
+    anon = TestClient(client.app, base_url="http://testserver")  # the `anon` fixture is the client before login: same cookie jar
+    assert anon.post("/api/passkeys/register/options", headers=same_origin()).status_code == 401
+    opts = client.post("/api/passkeys/register/options", headers=same_origin()).json()
+    assert opts["options"]["rp"]["id"] == "testserver" and opts["options"]["user"]["name"] == EMAIL
+    login_opts = anon.post("/api/passkeys/login/options", json={"email": EMAIL}, headers=same_origin()).json()
+    assert "challenge" in login_opts["options"] and login_opts["options"]["allowCredentials"] == []
+    assert client.get("/api/passkeys").json() == {"passkeys": []}

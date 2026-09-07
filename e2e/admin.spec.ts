@@ -34,7 +34,7 @@ test('an admin can add a person who must set a password and sees only their own 
   await expect(page.getByLabel('Password')).toBeVisible();
   await page.getByLabel('Email').fill(colleague);
   await page.getByLabel('Password').fill(temp);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
   await page.getByLabel('Temporary password').fill(temp);
   await page.getByLabel('New password', { exact: true }).fill('a-sentence-i-will-remember');
@@ -51,10 +51,10 @@ test('an admin can add a person who must set a password and sees only their own 
   // The temporary password is dead; the chosen one works.
   await page.getByLabel('Email').fill(colleague);
   await page.getByLabel('Password').fill(temp);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText(/not right/i);
   await page.getByLabel('Password').fill('a-sentence-i-will-remember');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.locator('.library-main')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Choose a new password' })).toHaveCount(0);
   await page.locator('.account-btn').click();

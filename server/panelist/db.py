@@ -26,8 +26,31 @@ CREATE TABLE IF NOT EXISTS users (
     must_change INTEGER NOT NULL DEFAULT 0,
     generation INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL,
-    last_login_at INTEGER
+    last_login_at INTEGER,
+    inbox_token_hash TEXT
 );
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_seen_at INTEGER NOT NULL,
+    revoked INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS sessions_by_user ON sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS passkeys (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    public_key BLOB NOT NULL,
+    sign_count INTEGER NOT NULL DEFAULT 0,
+    transports TEXT,
+    label TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_used_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS passkeys_by_user ON passkeys(user_id);
 
 CREATE TABLE IF NOT EXISTS reviews (
     id TEXT PRIMARY KEY,
@@ -138,6 +161,8 @@ def _migrate_to_accounts(conn: sqlite3.Connection) -> None:
     """
     if "reviews" in _tables(conn) and "owner_id" not in _columns(conn, "reviews"):
         conn.execute("ALTER TABLE reviews ADD COLUMN owner_id TEXT")
+    if "users" in _tables(conn) and "inbox_token_hash" not in _columns(conn, "users"):
+        conn.execute("ALTER TABLE users ADD COLUMN inbox_token_hash TEXT")
     if "account_records" in _tables(conn) and "owner_id" not in _columns(conn, "account_records"):
         conn.executescript(
             """

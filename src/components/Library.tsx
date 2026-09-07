@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
-import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw, Plus, ChevronDown, KeyRound, Users, UserRound } from 'lucide-react';
+import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw, Plus, ChevronDown, KeyRound, Users, UserRound, Send, Fingerprint } from 'lucide-react';
 import { useIsPhone } from '../hooks/useMedia';
 import { useStore } from '../lib/store';
 import { getFramework } from '../lib/frameworks';
@@ -256,6 +256,12 @@ function AccountMenu() {
               {me?.email}
               {me?.isAdmin && <span className="chip chip-quiet">admin</span>}
             </div>
+            <button type="button" className="more-item" role="menuitem" onClick={act(() => useStore.getState().openInbox())}>
+              <Send size={14} /> Send PDFs from your phone
+            </button>
+            <button type="button" className="more-item" role="menuitem" onClick={act(() => useStore.getState().openSecurity())}>
+              <Fingerprint size={14} /> Passkeys and devices
+            </button>
             <button type="button" className="more-item" role="menuitem" onClick={act(() => useStore.getState().openPasswordDialog())}>
               <KeyRound size={14} /> Change password
             </button>

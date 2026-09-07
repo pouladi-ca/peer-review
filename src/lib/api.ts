@@ -86,6 +86,21 @@ export interface Me {
   mustChangePassword: boolean;
 }
 
+export interface PasskeyInfo {
+  id: string;
+  label: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
+export interface SessionInfo {
+  id: string;
+  label: string;
+  createdAt: number;
+  lastSeenAt: number;
+  current: boolean;
+}
+
 export interface AdminUser extends Me {
   disabled: boolean;
   createdAt: number;
@@ -104,6 +119,23 @@ export const api = {
   logout: () => request<{ ok: boolean }>('POST', '/api/logout', {}),
   logoutEverywhere: () => request<{ ok: boolean }>('POST', '/api/logout-everywhere', {}),
   changePassword: (current: string, next: string) => request<Me>('POST', '/api/password', { current, new: next }),
+  passkeys: {
+    registerOptions: () => request<{ challengeId: string; options: Record<string, unknown> }>('POST', '/api/passkeys/register/options', {}),
+    register: (challengeId: string, credential: Record<string, unknown>, label: string) => request<{ passkey: PasskeyInfo }>('POST', '/api/passkeys/register', { challengeId, credential, label }),
+    list: () => request<{ passkeys: PasskeyInfo[] }>('GET', '/api/passkeys'),
+    remove: (id: string) => request<{ ok: boolean }>('DELETE', `/api/passkeys/${encodeURIComponent(id)}`),
+    loginOptions: (email: string) => request<{ challengeId: string; options: Record<string, unknown> }>('POST', '/api/passkeys/login/options', { email }),
+    login: (challengeId: string, credential: Record<string, unknown>) => request<Me>('POST', '/api/passkeys/login', { challengeId, credential }),
+  },
+  sessions: {
+    list: () => request<{ sessions: SessionInfo[] }>('GET', '/api/sessions'),
+    end: (id: string) => request<{ ok: boolean }>('DELETE', `/api/sessions/${encodeURIComponent(id)}`),
+  },
+  inbox: {
+    status: () => request<{ configured: boolean }>('GET', '/api/inbox/token'),
+    create: () => request<{ token: string }>('POST', '/api/inbox/token', {}),
+    revoke: () => request<{ ok: boolean }>('DELETE', '/api/inbox/token'),
+  },
   admin: {
     users: () => request<{ users: AdminUser[] }>('GET', '/api/admin/users'),
     create: (email: string, isAdmin = false) => request<{ user: AdminUser; temporaryPassword: string }>('POST', '/api/admin/users', { email, isAdmin }),

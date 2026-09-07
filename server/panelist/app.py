@@ -21,6 +21,8 @@ from .db import Database
 from .reflow import ReflowManager
 from .routes import admin as admin_routes
 from .routes import auth as auth_routes
+from .routes import inbox as inbox_routes
+from .routes import passkeys as passkey_routes
 from .routes import reflow as reflow_routes
 from .routes import sync as sync_routes
 
@@ -28,6 +30,8 @@ log = logging.getLogger("panelist.app")
 
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 LOGIN_PATH = "/api/login"
+INBOX_PATH = "/api/inbox"  # authenticated by a bearer token inside the route
+PASSKEY_LOGIN_PATHS = frozenset({"/api/passkeys/login/options", "/api/passkeys/login"})
 FILE_PATH_RE = re.compile(r"^/api/reviews/[^/]+/files/[^/]+$")
 UPLOAD_HEADROOM = 64 * 1024
 CSP = (
@@ -63,7 +67,7 @@ def _is_api_path(path: str) -> bool:
 
 
 def _body_limit(method: str, path: str) -> int:
-    if method == "PUT" and FILE_PATH_RE.match(path):
+    if (method == "PUT" and FILE_PATH_RE.match(path)) or (method == "POST" and path == INBOX_PATH):
         return MAX_UPLOAD_BYTES + UPLOAD_HEADROOM
     return MAX_BODY_BYTES
 
@@ -114,7 +118,7 @@ class ApiGuard:
                 scope, receive, send
             )
             return
-        if path != LOGIN_PATH and not session_is_valid(request):
+        if path not in (LOGIN_PATH, INBOX_PATH) and path not in PASSKEY_LOGIN_PATHS and not session_is_valid(request):
             await JSONResponse({"error": "Not signed in"}, status_code=401)(scope, receive, send)
             return
         limit = _body_limit(method, path)
@@ -218,6 +222,8 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     app.include_router(auth_routes.router)
     app.include_router(admin_routes.router)
+    app.include_router(inbox_routes.router)
+    app.include_router(passkey_routes.router)
     app.include_router(sync_routes.router)
     app.include_router(reflow_routes.router)
     _install_static(app, cfg.static_dir)

@@ -64,13 +64,38 @@ def login(body: LoginBody, request: Request, response: Response) -> dict[str, An
         users.touch_login(conn, user.id)
     for k in keys:
         auth.limiter.clear(k)
-    auth.set_cookie(response, auth.issue_token(user))
+    auth.sign_in(user, request, response)
     return me_payload(user)
 
 
 @router.post("/logout")
-def logout(request: Request, response: Response, _user: User = Depends(require_session)) -> dict[str, bool]:
-    _auth(request).clear_cookie(response)
+def logout(request: Request, response: Response, user: User = Depends(require_session)) -> dict[str, bool]:
+    auth = _auth(request)
+    sid = auth.session_id(request)
+    if sid:
+        with _db(request).connect() as conn:
+            users.revoke_session(conn, sid, user.id)
+    auth.clear_cookie(response)
+    return {"ok": True}
+
+
+@router.get("/sessions")
+def sessions(request: Request, user: User = Depends(require_session)) -> dict[str, Any]:
+    """Every device signed in to this account, the current one flagged."""
+    current = _auth(request).session_id(request)
+    with _db(request).connect(write=False) as conn:
+        rows = users.list_sessions(conn, user.id)
+    return {"sessions": [{"id": s.id, "label": s.label, "createdAt": s.created_at, "lastSeenAt": s.last_seen_at, "current": s.id == current} for s in rows]}
+
+
+@router.delete("/sessions/{session_id}")
+def end_session(session_id: str, request: Request, response: Response, user: User = Depends(require_session)) -> dict[str, bool]:
+    """Sign one device out. Ending the current session also clears this cookie."""
+    with _db(request).connect() as conn:
+        if not users.revoke_session(conn, session_id, user.id):
+            raise HTTPException(status_code=404, detail="No such session.")
+    if session_id == _auth(request).session_id(request):
+        _auth(request).clear_cookie(response)
     return {"ok": True}
 
 
@@ -79,6 +104,7 @@ def logout_everywhere(request: Request, response: Response, user: User = Depends
     auth, db = _auth(request), _db(request)
     with db.connect() as conn:
         users.bump_generation(conn, user.id)
+        users.revoke_all_sessions(conn, user.id)
     auth.clear_cookie(response)
     return {"ok": True}
 
@@ -103,5 +129,6 @@ def change_password(body: PasswordBody, request: Request, response: Response, us
         users.set_password(conn, user.id, body.new, must_change=False)
         fresh = users.get(conn, user.id)
     assert fresh is not None
-    auth.set_cookie(response, auth.issue_token(fresh))
+    # A new generation ended every session; start a fresh one for this device.
+    auth.sign_in(fresh, request, response)
     return me_payload(fresh)

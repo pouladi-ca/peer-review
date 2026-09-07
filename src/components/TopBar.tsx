@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useFramework } from '../hooks/useFramework';
 import { FrameworkOptions } from './FrameworkOptions';
-import { ArrowLeft, Sun, Moon, Monitor, Command, Keyboard, Scan, Clock, Check, Loader2, Cloud, CloudOff, RefreshCw, LogOut, MoreHorizontal, SlidersHorizontal, KeyRound, Users } from 'lucide-react';
+import { ArrowLeft, Sun, Moon, Monitor, Command, Keyboard, Scan, Clock, Check, Loader2, Cloud, CloudOff, RefreshCw, LogOut, MoreHorizontal, SlidersHorizontal, KeyRound, Users, Send, Fingerprint } from 'lucide-react';
 import { useStore } from '../lib/store';
 
 import { computeProgress } from '../lib/progress';
@@ -129,6 +129,12 @@ export function TopBar() {
                 </button>
                 <button type="button" className="more-item" role="menuitem" onClick={() => (useStore.getState().syncNow(), setShowMore(false))}>
                   <RefreshCw size={14} /> Sync now
+                </button>
+                <button type="button" className="more-item" role="menuitem" onClick={() => (useStore.getState().openInbox(), setShowMore(false))}>
+                  <Send size={14} /> Send PDFs from your phone
+                </button>
+                <button type="button" className="more-item" role="menuitem" onClick={() => (useStore.getState().openSecurity(), setShowMore(false))}>
+                  <Fingerprint size={14} /> Passkeys and devices
                 </button>
                 <button type="button" className="more-item" role="menuitem" onClick={() => (useStore.getState().openPasswordDialog(), setShowMore(false))}>
                   <KeyRound size={14} /> Change password

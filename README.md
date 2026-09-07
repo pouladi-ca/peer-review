@@ -169,6 +169,13 @@ which must be replaced at first sign-in. Admins can also reset a password (which
 signs that person out everywhere), disable or delete an account, and promote another
 admin. There is no self-service reset by email; ask an admin.
 
+Passkeys (Face ID, Touch ID, a device's own lock) can be added from the account menu
+under "Passkeys and devices", which also lists every signed-in device and lets you sign
+one out. "Send PDFs from your phone" explains the share sheet: browsers that implement
+the Web Share Target standard (Android, ChromeOS, Windows) can share a PDF straight into
+the installed app; on iPhone and iPad, a one-time Shortcut posts the PDF to
+`POST /api/inbox` with a per-account inbox token, and the review opens on the phone.
+
 ## License
 
 MIT. The application content you review is your own and stays on your device.

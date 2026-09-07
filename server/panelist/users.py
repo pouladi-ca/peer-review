@@ -169,3 +169,156 @@ def adopt_orphans(conn: sqlite3.Connection, user_id: str) -> None:
     """Give data from before accounts existed to a user (the first admin)."""
     conn.execute("UPDATE reviews SET owner_id = ? WHERE owner_id IS NULL OR owner_id = ''", (user_id,))
     conn.execute("UPDATE account_records SET owner_id = ? WHERE owner_id IS NULL OR owner_id = ''", (user_id,))
+
+
+# --- inbox tokens: let a phone's share sheet post a PDF without a browser session ----------
+
+def inbox_token() -> str:
+    return secrets.token_urlsafe(24)
+
+
+def token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def set_inbox_token(conn: sqlite3.Connection, user_id: str, token: str | None) -> None:
+    conn.execute("UPDATE users SET inbox_token_hash = ? WHERE id = ?", (token_hash(token) if token else None, user_id))
+
+
+def has_inbox_token(conn: sqlite3.Connection, user_id: str) -> bool:
+    row = conn.execute("SELECT inbox_token_hash FROM users WHERE id = ?", (user_id,)).fetchone()
+    return bool(row and row["inbox_token_hash"])
+
+
+def get_by_inbox_token(conn: sqlite3.Connection, token: str) -> User | None:
+    row = conn.execute("SELECT * FROM users WHERE inbox_token_hash = ?", (token_hash(token),)).fetchone()
+    return _row_to_user(row) if row else None
+
+
+# --- sessions: one row per signed-in device, so each can be seen and ended ----------------
+
+@dataclass(frozen=True, slots=True)
+class Session:
+    id: str
+    user_id: str
+    label: str
+    created_at: int
+    last_seen_at: int
+    revoked: bool
+
+
+def device_label(user_agent: str) -> str:
+    """A short, human name for a device from its user agent: "iPhone · Safari"."""
+    ua = user_agent or ""
+    if "iPhone" in ua:
+        device = "iPhone"
+    elif "iPad" in ua:
+        device = "iPad"
+    elif "Android" in ua:
+        device = "Android"
+    elif "Macintosh" in ua:
+        device = "Mac"
+    elif "Windows" in ua:
+        device = "Windows"
+    elif "CrOS" in ua:
+        device = "Chromebook"
+    elif "Linux" in ua:
+        device = "Linux"
+    else:
+        device = "Device"
+    if "Edg/" in ua:
+        browser = "Edge"
+    elif "Firefox/" in ua:
+        browser = "Firefox"
+    elif "Chrome/" in ua or "CriOS/" in ua:
+        browser = "Chrome"
+    elif "Safari/" in ua:
+        browser = "Safari"
+    else:
+        browser = "browser"
+    return f"{device} · {browser}"
+
+
+def create_session(conn: sqlite3.Connection, user_id: str, user_agent: str) -> Session:
+    now = int(time.time() * 1000)
+    sid = secrets.token_urlsafe(18)
+    conn.execute(
+        "INSERT INTO sessions(id, user_id, label, created_at, last_seen_at, revoked) VALUES(?, ?, ?, ?, ?, 0)",
+        (sid, user_id, device_label(user_agent), now, now),
+    )
+    return Session(sid, user_id, device_label(user_agent), now, now, False)
+
+
+def get_session(conn: sqlite3.Connection, sid: str) -> Session | None:
+    row = conn.execute("SELECT * FROM sessions WHERE id = ?", (sid,)).fetchone()
+    return Session(row["id"], row["user_id"], row["label"], int(row["created_at"]), int(row["last_seen_at"]), bool(row["revoked"])) if row else None
+
+
+def touch_session(conn: sqlite3.Connection, sid: str) -> None:
+    conn.execute("UPDATE sessions SET last_seen_at = ? WHERE id = ?", (int(time.time() * 1000), sid))
+
+
+SESSION_STALE_MS = 180 * 24 * 60 * 60 * 1000  # the cookie's own lifetime
+
+
+def list_sessions(conn: sqlite3.Connection, user_id: str) -> list[Session]:
+    """Live sessions, newest activity first; ones whose cookie has expired are left out."""
+    cutoff = int(time.time() * 1000) - SESSION_STALE_MS
+    rows = conn.execute("SELECT * FROM sessions WHERE user_id = ? AND revoked = 0 AND last_seen_at > ? ORDER BY last_seen_at DESC", (user_id, cutoff))
+    return [Session(r["id"], r["user_id"], r["label"], int(r["created_at"]), int(r["last_seen_at"]), bool(r["revoked"])) for r in rows]
+
+
+def revoke_session(conn: sqlite3.Connection, sid: str, user_id: str) -> bool:
+    cur = conn.execute("UPDATE sessions SET revoked = 1 WHERE id = ? AND user_id = ?", (sid, user_id))
+    return cur.rowcount > 0
+
+
+def revoke_all_sessions(conn: sqlite3.Connection, user_id: str) -> None:
+    conn.execute("UPDATE sessions SET revoked = 1 WHERE user_id = ?", (user_id,))
+
+
+# --- passkeys -------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class Passkey:
+    id: str
+    user_id: str
+    public_key: bytes
+    sign_count: int
+    transports: list[str]
+    label: str
+    created_at: int
+    last_used_at: int | None
+
+    def public(self) -> dict[str, Any]:
+        return {"id": self.id, "label": self.label, "createdAt": self.created_at, "lastUsedAt": self.last_used_at}
+
+
+def _row_to_passkey(r: sqlite3.Row) -> Passkey:
+    return Passkey(r["id"], r["user_id"], bytes(r["public_key"]), int(r["sign_count"]), (r["transports"] or "").split(",") if r["transports"] else [], r["label"], int(r["created_at"]), r["last_used_at"])
+
+
+def add_passkey(conn: sqlite3.Connection, user_id: str, cred_id: str, public_key: bytes, sign_count: int, transports: list[str], label: str) -> Passkey:
+    now = int(time.time() * 1000)
+    conn.execute(
+        "INSERT INTO passkeys(id, user_id, public_key, sign_count, transports, label, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)",
+        (cred_id, user_id, public_key, sign_count, ",".join(transports), label, now),
+    )
+    return get_passkey(conn, cred_id)  # type: ignore[return-value]
+
+
+def get_passkey(conn: sqlite3.Connection, cred_id: str) -> Passkey | None:
+    row = conn.execute("SELECT * FROM passkeys WHERE id = ?", (cred_id,)).fetchone()
+    return _row_to_passkey(row) if row else None
+
+
+def list_passkeys(conn: sqlite3.Connection, user_id: str) -> list[Passkey]:
+    return [_row_to_passkey(r) for r in conn.execute("SELECT * FROM passkeys WHERE user_id = ? ORDER BY created_at", (user_id,))]
+
+
+def passkey_used(conn: sqlite3.Connection, cred_id: str, sign_count: int) -> None:
+    conn.execute("UPDATE passkeys SET sign_count = ?, last_used_at = ? WHERE id = ?", (sign_count, int(time.time() * 1000), cred_id))
+
+
+def delete_passkey(conn: sqlite3.Connection, cred_id: str, user_id: str) -> bool:
+    return conn.execute("DELETE FROM passkeys WHERE id = ? AND user_id = ?", (cred_id, user_id)).rowcount > 0

@@ -5,7 +5,8 @@
  * devices resumes at the same place.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Images, Loader2, Minus, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Images, Loader2, Minus, Plus, Volume2, Square, Pause, Play, SkipBack, SkipForward } from 'lucide-react';
+import { READ_RATES, useReadAloud } from '../../hooks/useReadAloud';
 import { useStore, selectActiveDoc, selectActiveMeta } from '../../lib/store';
 import { criterionForHint, sectionAt } from '../../lib/analyze/outline';
 import { useFramework } from '../../hooks/useFramework';
@@ -253,6 +254,9 @@ export function ReadView() {
     }
   };
 
+  const aloud = useReadAloud(doc, scrollRef, contentRef);
+  const [aloudMenu, setAloudMenu] = useState(false);
+
   const total = meta?.pages ?? 0;
   const goto = (p: number) => {
     const clamped = Math.max(1, Math.min(total || p, p));
@@ -276,6 +280,35 @@ export function ReadView() {
           <IconButton icon={Minus} label="Smaller text" onClick={() => changeScale(-0.1)} />
           <IconButton icon={Plus} label="Larger text" onClick={() => changeScale(0.1)} />
           {doc && doc.figures.length > 0 && <IconButton icon={Images} label={`Figures (${doc.figures.length})`} onClick={() => useStore.getState().openFigure(activeDocId, doc.figures[0].id)} />}
+          {doc && aloud.supported && (
+            <div className="aloud-wrap">
+              {aloud.state === 'idle' ? (
+                <IconButton icon={Volume2} label="Read aloud from here" onClick={() => aloud.start()} />
+              ) : (
+                <span className="aloud-ctl" role="group" aria-label="Read aloud">
+                  <IconButton icon={SkipBack} label="Previous paragraph" onClick={() => aloud.skip(-1)} />
+                  {aloud.state === 'speaking' ? <IconButton icon={Pause} label="Pause reading" onClick={aloud.pause} /> : <IconButton icon={Play} label="Resume reading" onClick={aloud.resume} />}
+                  <IconButton icon={SkipForward} label="Next paragraph" onClick={() => aloud.skip(1)} />
+                  <button type="button" className="aloud-rate" onClick={() => setAloudMenu((v) => !v)} aria-label={`Reading speed ${aloud.rate}×`} aria-expanded={aloudMenu}>
+                    {aloud.rate}×
+                  </button>
+                  <IconButton icon={Square} label="Stop reading" onClick={aloud.stop} />
+                  {aloudMenu && (
+                    <>
+                      <div className="more-scrim" onClick={() => setAloudMenu(false)} />
+                      <div className="popover aloud-pop" role="menu">
+                        {READ_RATES.map((r) => (
+                          <button key={r} type="button" role="menuitemradio" aria-checked={aloud.rate === r} className={`more-item ${aloud.rate === r ? 'is-on' : ''}`} onClick={() => (aloud.setRate(r), setAloudMenu(false))}>
+                            {r}× {r === 1 ? 'normal' : r < 1 ? 'slower' : 'faster'}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+          )}
           <span className="toolbar-sep" aria-hidden />
           <ViewModeToggle />
         </div>

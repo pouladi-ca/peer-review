@@ -10,7 +10,7 @@ export async function login(page: Page, email = E2E_EMAIL, password = E2E_PASSWO
   if (await field.isVisible({ timeout: 3000 }).catch(() => false)) {
     await page.getByLabel('Email').fill(email);
     await field.fill(password);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   }
   // The hero heading hides on phones once reviews exist; the library main is always there.
   await expect(page.locator('.library-main')).toBeVisible();
