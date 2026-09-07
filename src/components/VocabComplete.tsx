@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { suggest, wordBeforeCaret, type Term } from '../lib/writing/vocab';
+import { isTouchLike } from '../hooks/useMedia';
 
 interface Props {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -18,11 +19,15 @@ interface Popup {
 
 /**
  * Autocomplete from the proposal's own vocabulary. Listens natively on the textarea so it
- * works with any controlled input: Tab or Enter accepts, arrows move, Escape dismisses.
+ * works with any controlled input. With a keyboard: a floating list, Tab or Enter accepts,
+ * arrows move, Escape dismisses. On a touch screen: a row of chips in the flow under the
+ * box (a floating list would sit behind the on-screen keyboard), tapped to accept, and
+ * the Return key keeps its usual meaning.
  */
 export function VocabComplete({ textareaRef, value, onChange, terms }: Props) {
   const [popup, setPopup] = useState<Popup | null>(null);
   const [index, setIndex] = useState(0);
+  const touch = isTouchLike();
   const latest = useRef({ value, onChange, terms, popup, index });
   const acceptRef = useRef<((t: Term) => void) | null>(null);
   useEffect(() => {
@@ -62,7 +67,7 @@ export function VocabComplete({ textareaRef, value, onChange, terms }: Props) {
 
     const onKey = (e: KeyboardEvent) => {
       const { popup: p, index: i } = latest.current;
-      if (!p) return;
+      if (!p || touch) return;
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         setIndex((cur) => (cur + (e.key === 'ArrowDown' ? 1 : p.items.length - 1)) % p.items.length);
@@ -89,9 +94,20 @@ export function VocabComplete({ textareaRef, value, onChange, terms }: Props) {
       el.removeEventListener('blur', onBlur);
       window.removeEventListener('scroll', onScroll, true);
     };
-  }, [textareaRef]);
+  }, [textareaRef, touch]);
 
   if (!popup) return null;
+  if (touch) {
+    return (
+      <div className="vocab-inline" role="listbox" aria-label="Terms from the proposal">
+        {popup.items.slice(0, 4).map((t) => (
+          <button key={t.text} type="button" role="option" aria-selected={false} className="chip vocab-chip" onMouseDown={(e) => e.preventDefault()} onClick={() => acceptRef.current?.(t)}>
+            {t.text}
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
     <ul className="vocab-pop" role="listbox" aria-label="Terms from the proposal" style={{ left: popup.x, top: popup.y }}>
       {popup.items.map((t, i) => (

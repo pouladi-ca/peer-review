@@ -4326,3 +4326,36 @@ mark.rhl.has-comment::after {
   color: var(--muted);
   margin-top: 4px;
 }
+
+/* ---------- autocomplete on touch screens: chips in the flow ---------- */
+.vocab-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0 2px;
+}
+.vocab-chip {
+  cursor: pointer;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+@media (pointer: coarse) {
+  /* A finger needs a real target: the category menu and the note footer grow on touch screens. */
+  .note-foot {
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+  }
+  .note-foot select {
+    font-size: 14px;
+    min-height: 38px;
+    padding: 6px 26px 6px 10px;
+  }
+  /* The last card in a sheet must be able to scroll clear of the sheet's bottom edge. */
+  .sheet-body .panel-body {
+    padding-bottom: 96px;
+  }
+}

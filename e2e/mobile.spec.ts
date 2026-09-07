@@ -120,3 +120,40 @@ test('a phone gets the tab bar, sheets, and a docked tagging toolbar', async ({ 
   await page.locator('.tabbar-btn', { hasText: 'Score' }).click();
   await expect(page.locator('.sheet .criterion').first()).toBeVisible();
 });
+
+test('on a phone, note comments autocomplete with tappable chips and the category menu stays reachable', async ({ page }) => {
+  await login(page);
+  await page.getByRole('button', { name: 'Try a sample application', exact: true }).click();
+  await page.getByRole('radio', { name: 'Pages' }).click();
+  await expect(page.locator('.pdf-canvas').first()).toBeVisible({ timeout: 30_000 });
+  const span = page.locator('.textLayer span').filter({ hasText: /stroke|astrocyte|repair/i }).first();
+  await span.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+  await page.locator('.sel-toolbar .sel-strength').click();
+  const comment = page.locator('.note.is-selected .note-comment');
+  await expect(comment).toBeVisible();
+  // The vocabulary comes with the server's text extraction; wait for the import to finish.
+  await expect(page.locator('.import-strip')).toHaveCount(0, { timeout: 60_000 });
+  await comment.click();
+  await comment.pressSequentially('exos', { delay: 20 });
+  // No floating list on touch: chips in the flow, and Return still ends editing.
+  await expect(page.locator('.vocab-pop')).toHaveCount(0);
+  const chips = page.locator('.note.is-selected .vocab-chip');
+  await expect(chips.first()).toBeVisible();
+  await chips.first().click();
+  await expect(comment).toHaveValue(/^[Ee]xosom\w+$/);
+  await comment.press('Enter');
+  await expect(comment).not.toBeFocused();
+  // The category menu is a real target and works.
+  const select = page.locator('.note.is-selected .note-foot select');
+  const box = (await select.boundingBox())!;
+  expect(box.height).toBeGreaterThanOrEqual(36);
+  await select.selectOption({ index: 1 });
+  await expect(select).not.toHaveValue('');
+});

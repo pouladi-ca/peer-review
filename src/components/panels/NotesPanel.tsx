@@ -177,7 +177,7 @@ function NoteCard({ note }: { note: Annotation }) {
         onBlur={() => useStore.getState().editNote(null)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
-            if (document.querySelector('.vocab-pop')) return; // the autocomplete took the Enter
+            if (document.querySelector('.vocab-pop')) return; // the floating autocomplete took the Enter (keyboards only)
             e.preventDefault();
             (e.target as HTMLTextAreaElement).blur();
           }
