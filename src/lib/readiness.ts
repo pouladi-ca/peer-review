@@ -1,5 +1,5 @@
 import { criterionScale, fieldSpec, recommendationSpec, scoreLabel, type Framework } from './frameworks';
-import { composeDraft, sectionPlainText } from './draft';
+import { composeDraft, sectionPlainText, type ComposeOptions } from './draft';
 import { calibration } from './writing/intensity';
 import { lintApplicantFacing, lintRationale, repeatedPhrases } from './writing/lints';
 import { biasCheck } from './writing/bias';
@@ -56,7 +56,7 @@ function goodnessOf(fw: Framework, criterionId: string, value: number | string |
  * must be done before the review is complete) and suggestions (things that make
  * it more thorough, balanced, and useful to the applicant).
  */
-export function computeReadiness(review: Review, fw: Framework): Readiness {
+export function computeReadiness(review: Review, fw: Framework, opts: ComposeOptions = {}): Readiness {
   const core = fw.criteria.filter((c) => c.group === 'core');
   const notesFor = (id: string) => review.annotations.filter((a) => a.criterionId === id);
 
@@ -105,7 +105,7 @@ export function computeReadiness(review: Review, fw: Framework): Readiness {
   if (additionalSpec.required && review.draft.additional.trim().length === 0) blockers.push({ id: 'additional-required', kind: 'blocker', text: `Fill in the ${additionalSpec.label.toLowerCase()} box`, tab: 'draft' });
 
   // The funder's character limits: the form rejects anything longer, so these block.
-  const draft = composeDraft(review, fw);
+  const draft = composeDraft(review, fw, opts);
   const overBy = (text: string, max: number | undefined) => (max && text.length > max ? text.length - max : 0);
   const overLimit = (id: string, label: string, over: number, max: number, tab: PanelTab) => {
     if (over > 0) blockers.push({ id: `over-${id}`, kind: 'blocker', text: `${label} is ${over.toLocaleString()} character${over === 1 ? '' : 's'} over the ${max.toLocaleString()} limit`, tab });

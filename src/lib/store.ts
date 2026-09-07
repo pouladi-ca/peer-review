@@ -119,6 +119,8 @@ interface State {
   inboxOpen: boolean;
   /** The passkeys and devices dialog is open. */
   securityOpen: boolean;
+  /** How the draft is exported on this device. */
+  exportPrefs: ExportPrefs;
   /** null while the session is being checked, then whether the reviewer is signed in. */
   authed: boolean | null;
   /** The signed-in account; null until known. */
@@ -173,6 +175,7 @@ interface State {
   closeInbox(): void;
   openSecurity(): void;
   closeSecurity(): void;
+  setExportPrefs(patch: Partial<ExportPrefs>): void;
   /** Open a review that may still be arriving through sync (from a share-sheet post). */
   openWhenSynced(id: string): Promise<void>;
   updatePanel(patch: Partial<PanelNotes>): void;
@@ -268,6 +271,25 @@ const announced = new Set<string>();
 async function loadReviewList(set: (partial: Partial<State>) => void): Promise<void> {
   const reviews = await db.reviews.orderBy('updatedAt').reverse().toArray();
   set({ reviews });
+}
+
+export interface ExportPrefs {
+  /** Print the framework's questions and guidance under each heading. */
+  guidance: boolean;
+  /** Quote every highlighted passage in full rather than clipped. */
+  fullQuotes: boolean;
+}
+
+function loadExportPrefs(): ExportPrefs {
+  const prefs: ExportPrefs = { guidance: false, fullQuotes: false };
+  try {
+    const raw = localStorage.getItem('panelist.exportPrefs');
+    if (raw) Object.assign(prefs, JSON.parse(raw) as Partial<ExportPrefs>);
+    else if (localStorage.getItem('panelist.exportGuidance') === '1') prefs.guidance = true; // the earlier single switch
+  } catch {
+    /* ignore */
+  }
+  return prefs;
 }
 
 /** Wipe every locally cached review, file, and sync state on this device. */
@@ -515,6 +537,7 @@ export const useStore = create<State>((set, get) => {
     meetingOpen: false,
     inboxOpen: false,
     securityOpen: false,
+    exportPrefs: loadExportPrefs(),
     authed: null,
     me: null,
     adminOpen: false,
@@ -1008,6 +1031,15 @@ export const useStore = create<State>((set, get) => {
       const next = get().userPhrases.filter((p) => p.id !== id);
       set({ userPhrases: next });
       await Promise.all([setSetting('userPhrases', { phrases: next }), ensureEngine().recordAccount(PHRASES_KEY, { phrases: next })]);
+    },
+    setExportPrefs(patch) {
+      const next = { ...get().exportPrefs, ...patch };
+      set({ exportPrefs: next });
+      try {
+        localStorage.setItem('panelist.exportPrefs', JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
     },
     openSecurity: () => set({ securityOpen: true, paletteOpen: false, helpOpen: false }),
     closeSecurity: () => set({ securityOpen: false }),

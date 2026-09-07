@@ -18,24 +18,11 @@ export function DraftPanel() {
   const notify = useStore((s) => s.notify);
   const fw = useFramework(review.frameworkId);
   const [includeConfidential, setIncludeConfidential] = useState(false);
-  const [includeGuidance, setIncludeGuidance] = useState(() => {
-    try {
-      return localStorage.getItem('panelist.exportGuidance') === '1';
-    } catch {
-      return false;
-    }
-  });
-  const toggleGuidance = (on: boolean) => {
-    setIncludeGuidance(on);
-    try {
-      localStorage.setItem('panelist.exportGuidance', on ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-  };
+  const exportPrefs = useStore((s) => s.exportPrefs);
+  const includeGuidance = exportPrefs.guidance;
   const exportOpts = { includeConfidential, includeGuidance };
   const [showPreview, setShowPreview] = useState(true);
-  const draft = useMemo(() => composeDraft(review, fw), [review, fw]);
+  const draft = useMemo(() => composeDraft(review, fw, { fullQuotes: exportPrefs.fullQuotes }), [review, fw, exportPrefs.fullQuotes]);
   const base = safeFilename(review.title);
   const summarySpec = fieldSpec(fw, 'summary');
   const additionalSpec = fieldSpec(fw, 'additional');
@@ -189,8 +176,12 @@ export function DraftPanel() {
           <span className="chip chip-question">{draft.stats.questions} questions</span>
         </div>
         <label className="switch export-opt">
-          <input type="checkbox" checked={includeGuidance} onChange={(e) => toggleGuidance(e.target.checked)} />
+          <input type="checkbox" checked={includeGuidance} onChange={(e) => useStore.getState().setExportPrefs({ guidance: e.target.checked })} />
           <span>Include the framework's questions and guidance under each heading</span>
+        </label>
+        <label className="switch export-opt">
+          <input type="checkbox" checked={exportPrefs.fullQuotes} onChange={(e) => useStore.getState().setExportPrefs({ fullQuotes: e.target.checked })} />
+          <span>Quote highlighted passages in full instead of clipping them</span>
         </label>
         <div className="export-grid">
           <button type="button" className="btn" onClick={doDocx}>
@@ -284,7 +275,8 @@ function Guide({ description, prompts = [] }: { description?: string; prompts?: 
 export function DraftPreview({ includeConfidential, includeGuidance = false }: { includeConfidential: boolean; includeGuidance?: boolean }) {
   const review = useStore((s) => s.review)!;
   const fw = useFramework(review.frameworkId);
-  const d = useMemo(() => composeDraft(review, fw), [review, fw]);
+  const fullQuotes = useStore((s) => s.exportPrefs.fullQuotes);
+  const d = useMemo(() => composeDraft(review, fw, { fullQuotes }), [review, fw, fullQuotes]);
   const overallText = [d.overall.scoreLine, d.overall.recommendation ? `${d.overall.recommendationLabel} ${d.overall.recommendation}` : ''].filter(Boolean).join('\n');
   return (
     <article className="preview" id="print-root">

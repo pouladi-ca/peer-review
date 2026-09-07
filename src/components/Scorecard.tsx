@@ -15,7 +15,8 @@ function swatch(goodness?: number): string {
 export function Scorecard() {
   const review = useStore((s) => s.review)!;
   const fw = useFramework(review.frameworkId);
-  const readiness = useMemo(() => computeReadiness(review, fw), [review, fw]);
+  const exportPrefs = useStore((s) => s.exportPrefs);
+  const readiness = useMemo(() => computeReadiness(review, fw, { fullQuotes: exportPrefs.fullQuotes }), [review, fw, exportPrefs.fullQuotes]);
 
   const go = (id: string) => {
     const s = useStore.getState();
@@ -67,7 +68,8 @@ function Dots({ row }: { row: ScorecardRow }) {
 export function SubmitCheck() {
   const review = useStore((s) => s.review)!;
   const fw = useFramework(review.frameworkId);
-  const { blockers, suggestions, ready } = useMemo(() => computeReadiness(review, fw), [review, fw]);
+  const exportPrefs = useStore((s) => s.exportPrefs);
+  const { blockers, suggestions, ready } = useMemo(() => computeReadiness(review, fw, { fullQuotes: exportPrefs.fullQuotes }), [review, fw, exportPrefs.fullQuotes]);
 
   const jump = (tab: 'brief' | 'notes' | 'score' | 'checklist' | 'draft') => useStore.getState().setTab(tab);
 

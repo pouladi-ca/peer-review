@@ -412,6 +412,16 @@ test('writing aids: proposal vocabulary autocompletes, bias wording is noted, sa
   await expect(page.locator('.preview .pv-guide li').first()).not.toBeEmpty();
   await page.getByLabel(/Include the framework/).uncheck();
   await expect(page.locator('.preview .pv-guide')).toHaveCount(0);
+  // Full quotes is a remembered export option too.
+  const full = page.getByLabel(/Quote highlighted passages in full/);
+  await full.check();
+  await page.reload();
+  await expect(page.locator('.library-main')).toBeVisible();
+  await page.locator('.review-card-main').first().click();
+  await expect(page.locator('.pdf-canvas').first()).toBeVisible({ timeout: 30_000 });
+  await page.locator('.panel-tab', { hasText: 'Draft' }).click();
+  await expect(page.getByLabel(/Quote highlighted passages in full/)).toBeChecked();
+  await page.getByLabel(/Quote highlighted passages in full/).uncheck();
 });
 
 test('meeting mode: a panel card with a drafted pitch, a discussion log, and the score after discussion', async ({ page }) => {

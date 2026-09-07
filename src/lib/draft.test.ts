@@ -178,3 +178,18 @@ describe('guidance export', () => {
     expect(draftToPlainText(d, { includeGuidance: true })).toContain(`    • ${prompt}`);
   });
 });
+
+describe('full quotes', () => {
+  it('clips long passages by default and keeps them whole on request', () => {
+    const r = newReview({ frameworkId: 'nih-2025' });
+    const long = 'A'.repeat(60) + ' ' + 'B'.repeat(60) + ' ' + 'C'.repeat(60);
+    r.docs = [{ id: 'd1', name: 'app.pdf', size: 1, pages: 3, addedAt: Date.now(), role: 'application' }];
+    r.annotations = [annotation({ kind: 'strength', criterionId: 'importance', quote: long, comment: 'well supported' })];
+    const clipped = composeDraft(r, getFramework('nih-2025')).sections[0].strengths[0].text;
+    const whole = composeDraft(r, getFramework('nih-2025'), { fullQuotes: true }).sections[0].strengths[0].text;
+    expect(clipped).toContain('…');
+    expect(clipped).not.toContain('C'.repeat(60));
+    expect(whole).toContain(long);
+    expect(whole).not.toContain('…');
+  });
+});

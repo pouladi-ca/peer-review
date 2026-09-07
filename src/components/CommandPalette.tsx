@@ -70,18 +70,18 @@ export function CommandPalette() {
         group: 'Export',
         run: async () => {
           close();
-          downloadBlob(await draftToDocx(composeDraft(review, fw)), `${base}-review.docx`);
+          downloadBlob(await draftToDocx(composeDraft(review, fw, { fullQuotes: s.exportPrefs.fullQuotes })), `${base}-review.docx`);
           s.notify('Word document downloaded.', 'success');
         },
       });
-      list.push({ id: 'exp-md', label: 'Export review as Markdown', group: 'Export', run: () => (close(), downloadText(draftToMarkdown(composeDraft(review, fw)), `${base}-review.md`, 'text/markdown')) });
+      list.push({ id: 'exp-md', label: 'Export review as Markdown', group: 'Export', run: () => (close(), downloadText(draftToMarkdown(composeDraft(review, fw, { fullQuotes: s.exportPrefs.fullQuotes })), `${base}-review.md`, 'text/markdown')) });
       list.push({
         id: 'exp-copy',
         label: 'Copy review to clipboard',
         group: 'Export',
         run: async () => {
           close();
-          const ok = await copyText(draftToMarkdown(composeDraft(review, fw)));
+          const ok = await copyText(draftToMarkdown(composeDraft(review, fw, { fullQuotes: s.exportPrefs.fullQuotes })));
           s.notify(ok ? 'Copied.' : 'Copy failed.', ok ? 'success' : 'error');
         },
       });

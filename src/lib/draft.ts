@@ -53,11 +53,17 @@ function pageRef(a: Annotation, docs: DocMeta[], multiDoc: boolean): string {
   return multiDoc && doc ? `${clip(doc.name.replace(/\.pdf$/i, ''), 24)}, p. ${a.page}` : `p. ${a.page}`;
 }
 
-export function bulletText(b: DraftBullet, ref: string): string {
+/** How the draft is composed; `fullQuotes` reproduces every highlighted passage whole instead of clipping it. */
+export interface ComposeOptions {
+  fullQuotes?: boolean;
+}
+
+export function bulletText(b: DraftBullet, ref: string, fullQuotes = false): string {
   const sev = b.severity === 'major' ? 'Major: ' : b.severity === 'minor' ? 'Minor: ' : '';
-  if (b.text && b.quote) return `${sev}${b.text} (“${clip(b.quote, 140)}”, ${ref})`;
+  const q = (n: number) => (fullQuotes ? (b.quote ?? '').trim() : clip(b.quote ?? '', n));
+  if (b.text && b.quote) return `${sev}${b.text} (“${q(140)}”, ${ref})`;
   if (b.text) return `${sev}${b.text} (${ref})`;
-  return `${sev}“${clip(b.quote ?? '', 200)}” (${ref})`;
+  return `${sev}“${q(200)}” (${ref})`;
 }
 
 function toBullet(a: Annotation, docs: DocMeta[], multiDoc: boolean): DraftBullet & { ref: string } {
@@ -86,7 +92,8 @@ export function autoSummary(review: Review): string {
   return bits.join('');
 }
 
-export function composeDraft(review: Review, fw: Framework): Draft {
+export function composeDraft(review: Review, fw: Framework, opts: ComposeOptions = {}): Draft {
+  const full = !!opts.fullQuotes;
   const docs = review.docs;
   const multiDoc = docs.length > 1;
   const byCriterion = new Map<string | undefined, Annotation[]>();
@@ -113,10 +120,10 @@ export function composeDraft(review: Review, fw: Framework): Draft {
       body,
       maxChars: c?.maxChars,
       guide: c ? { description: c.description, prompts: c.prompts } : undefined,
-      strengths: strengths.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
-      weaknesses: weaknesses.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
-      questions: questions.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
-      notes: other.map((b) => ({ ...b, text: bulletText(b, b.ref) })),
+      strengths: strengths.map((b) => ({ ...b, text: bulletText(b, b.ref, full) })),
+      weaknesses: weaknesses.map((b) => ({ ...b, text: bulletText(b, b.ref, full) })),
+      questions: questions.map((b) => ({ ...b, text: bulletText(b, b.ref, full) })),
+      notes: other.map((b) => ({ ...b, text: bulletText(b, b.ref, full) })),
       empty: !body && notes.length === 0 && !label,
     };
   };
@@ -131,7 +138,7 @@ export function composeDraft(review: Review, fw: Framework): Draft {
     .map((c) => {
       const s = review.scores[c.id];
       const label = scoreLabel(criterionScale(fw, c), s?.score);
-      const notes = sortNotes(byCriterion.get(c.id) ?? []).map((a) => bulletText(toBullet(a, docs, multiDoc), pageRef(a, docs, multiDoc)));
+      const notes = sortNotes(byCriterion.get(c.id) ?? []).map((a) => bulletText(toBullet(a, docs, multiDoc), pageRef(a, docs, multiDoc), full));
       const line = [label, s?.comment?.trim(), ...notes].filter(Boolean).join('. ').replace(/\.\./g, '.');
       return { heading: c.name, line };
     })
@@ -144,7 +151,7 @@ export function composeDraft(review: Review, fw: Framework): Draft {
   const all = review.annotations;
   const questions = sortNotes(all.filter((a) => a.kind === 'question')).map((a) => {
     const b = toBullet(a, docs, multiDoc);
-    return { ...b, text: bulletText(b, b.ref) };
+    return { ...b, text: bulletText(b, b.ref, full) };
   });
 
   return {
