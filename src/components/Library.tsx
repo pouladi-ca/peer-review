@@ -213,7 +213,7 @@ export function Library() {
                     <button type="button" className="review-card-main" onClick={() => openReview(r.id)}>
                       <ProgressRing value={progress.percent} size={40} stroke={4} label={`${progress.percent}`} />
                       <div className="review-card-text">
-                        <div className="review-card-title">{r.title}</div>
+                        <div className="review-card-title">{r.title.trim() || 'Untitled review'}</div>
                         <div className="review-card-meta">
                           <span className="badge">{fw.agency}</span>
                           {due && <span className={`due due-${due.level}`}>{due.text}</span>}
@@ -280,7 +280,7 @@ export function Library() {
                       <li key={r.id} className="review-card is-archived">
                         <button type="button" className="review-card-main" onClick={() => openReview(r.id)}>
                           <div className="review-card-text">
-                            <div className="review-card-title">{r.title}</div>
+                            <div className="review-card-title">{r.title.trim() || 'Untitled review'}</div>
                             <div className="review-card-meta">
                               <span className="badge">{getFramework(r.frameworkId).agency}</span>
                               <span>Archived {formatRelative(r.archivedAt ?? 0)}</span>

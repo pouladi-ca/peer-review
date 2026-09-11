@@ -40,6 +40,12 @@ export function TopBar() {
               r.title = e.target.value;
             })
           }
+          onBlur={(e) => {
+            if (!e.target.value.trim())
+              update((r) => {
+                r.title = 'Untitled review';
+              });
+          }}
           aria-label="Review title"
           spellCheck={false}
         />

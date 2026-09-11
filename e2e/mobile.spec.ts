@@ -23,6 +23,16 @@ test('the phone library is compact and never overflows', async ({ page }) => {
     const box = (await archiveBtn.boundingBox())!;
     expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    // The due-date editor gets its own row: the title keeps its width and the row fits the screen.
+    await card.getByRole('button', { name: /Set due date|Change due date/ }).click();
+    const editor = card.locator('.due-edit');
+    await expect(editor).toBeVisible();
+    const eb = (await editor.boundingBox())!;
+    const tb = (await card.locator('.review-card-title').boundingBox())!;
+    expect(eb.x + eb.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    expect(eb.y).toBeGreaterThan(tb.y + tb.height - 1);
+    expect(tb.width).toBeGreaterThan(150);
+    await card.getByRole('button', { name: 'Done' }).click();
   }
   const account = page.getByRole('button', { name: /^Account:/ });
   await expect(account).toBeVisible();

@@ -505,6 +505,7 @@ button.chip:hover {
 }
 .review-card {
   display: flex;
+  flex-wrap: wrap; /* the due-date editor takes a row of its own below the card's content */
   align-items: center;
   gap: 8px;
   background: var(--surface);
@@ -4863,9 +4864,20 @@ mark.rhl.has-comment::after {
   color: var(--danger);
 }
 .due-edit {
-  display: inline-flex;
+  flex: 1 0 100%;
+  order: 10;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  padding: 8px 6px 2px;
+  border-top: 1px solid var(--border);
+}
+.due-edit input[type='date'] {
+  flex: 1;
+  min-width: 0;
+}
+.due-edit .icon-btn {
+  margin-left: auto;
 }
 .due-edit input[type='date'] {
   font-size: 13px;
