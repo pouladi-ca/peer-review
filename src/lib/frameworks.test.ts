@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { FRAMEWORKS, allFrameworks, customToFramework, detectFramework, fieldSpec, frameworkToCustomDef, getFramework, recommendationSpec, setCustomFrameworks, scoreLabel, type CustomFrameworkDef, arrangeFrameworks, EMPTY_PREFS } from './frameworks';
 
 describe('built-in frameworks', () => {
-  it('ships fourteen frameworks with core criteria, scales, and checklists', () => {
-    expect(FRAMEWORKS.length).toBe(14);
+  it('ships fifteen frameworks with core criteria, scales, and checklists', () => {
+    expect(FRAMEWORKS.length).toBe(15);
     for (const fw of FRAMEWORKS) {
       expect(fw.criteria.filter((c) => c.group === 'core').length).toBeGreaterThan(0);
       expect(fw.checklist.some((c) => c.category === 'reviewer')).toBe(true);
@@ -35,6 +35,16 @@ describe('built-in frameworks', () => {
     const hdf = getFramework('hdf');
     expect(hdf.criteria.map((c) => c.name)).toEqual(['Relevance', 'Novelty', 'Significance', 'Scientific Premise', 'Approach', 'Applicant', 'Environment', 'Budget', 'NIH Guidelines']);
     expect(hdsa.checklist.some((c) => c.id === 'coe')).toBe(true);
+  });
+
+  it('detects the Neurological Foundation of New Zealand and carries its four scored points with word limits', () => {
+    expect(detectFramework('Review request from The Neurological Foundation of New Zealand. Description of Proposed Research.')).toBe('neurological-nz');
+    expect(detectFramework('Contact research@neurological.org.nz for help')).toBe('neurological-nz');
+    const nz = getFramework('neurological-nz');
+    expect(nz.criteria.filter((c) => c.group === 'core').map((c) => c.name)).toEqual(['Hypothesis and Objectives', 'Experimental Methods', 'Team and Resources', 'Scientific and Clinical Significance']);
+    expect(nz.criteria.every((c) => c.maxWords === 300 && !c.unscored)).toBe(true);
+    expect(nz.form?.minWordsTotal).toBe(400);
+    expect(nz.checklist.some((c) => c.id === 'ethicsNz')).toBe(true);
   });
 
   it('HDSA mirrors its ProposalCentral score sheet: comment-only criteria, 2,000-character boxes, one 1 to 9 score', () => {

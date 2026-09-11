@@ -22,6 +22,8 @@ export interface DraftSection {
   empty: boolean;
   /** The funder's character limit for this box, if any. */
   maxChars?: number;
+  /** The funder's word limit for this box, if any. */
+  maxWords?: number;
   /** What the framework asks under this criterion, for the optional guidance export. */
   guide?: { description: string; prompts: string[] };
 }
@@ -119,6 +121,7 @@ export function composeDraft(review: Review, fw: Framework, opts: ComposeOptions
       scoreLine: label && !c?.unscored ? `${scale?.kind === 'numeric' ? 'Score' : 'Rating'}: ${label}` : undefined,
       body,
       maxChars: c?.maxChars,
+      maxWords: c?.maxWords,
       guide: c ? { description: c.description, prompts: c.prompts } : undefined,
       strengths: strengths.map((b) => ({ ...b, text: bulletText(b, b.ref, full) })),
       weaknesses: weaknesses.map((b) => ({ ...b, text: bulletText(b, b.ref, full) })),

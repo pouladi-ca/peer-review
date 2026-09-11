@@ -39,6 +39,8 @@ export interface Criterion {
   unscored?: boolean;
   /** The funder's character limit for this criterion's comment box, if any. */
   maxChars?: number;
+  /** The funder's word limit for this criterion's comment box, if any. */
+  maxWords?: number;
 }
 
 export type ChecklistCategory = 'science' | 'rigor' | 'feasibility' | 'compliance' | 'reviewer';
@@ -57,6 +59,7 @@ export interface FieldSpec {
   label?: string;
   hint?: string;
   maxChars?: number;
+  maxWords?: number;
   required?: boolean;
 }
 
@@ -70,6 +73,8 @@ export interface FormSpec {
   overallComment?: FieldSpec;
   /** How the recommendation choice is labelled, and whether it must be answered. */
   recommendation?: { label: string; hint?: string; required?: boolean };
+  /** The funder asks for at least this many words across the criterion boxes. */
+  minWordsTotal?: number;
 }
 
 export interface Framework {
@@ -1195,6 +1200,89 @@ const HDSA: Framework = {
   expectedSections: ['Abstract', 'Specific Aims', 'Background', 'Significance', 'Research Plan', 'Approach', 'Methods', 'Feasibility', 'Timeline', 'Budget', 'Budget Justification', 'Key Personnel', 'Biographical Sketch', 'Letters of Support', 'Human Subjects', 'Clinical Collaboration'],
 };
 
+/* ---------- Neurological Foundation of New Zealand ---------- */
+
+const NEUROLOGICAL_NZ: Framework = {
+  id: 'neurological-nz',
+  name: 'Neurological Foundation of New Zealand',
+  agency: 'Neurological Foundation',
+  blurb:
+    'The Foundation\'s online portal asks external reviewers to score four points individually, each with a 300-word comment, and would like at least 400 words across the four: hypothesis and objectives, experimental methods, team and resources, and scientific and clinical significance. The portal\'s numeric scale is not stated in the request; the 1 to 5 default here can be changed to match it.',
+  criterionScale: FIVE_POINT,
+  form: {
+    minWordsTotal: 400,
+    summary: { hint: 'Optional: the portal has no summary box, but a short summary of the Description of Proposed Research helps you write the four sections consistently.' },
+    overallComment: { hint: 'Optional: the portal scores the four points individually. Use this for your own overall judgement and for anything the four boxes do not cover.' },
+  },
+  criteria: [
+    {
+      id: 'hypothesis', name: 'Hypothesis and Objectives', short: 'Hypothesis', group: 'core', bulleted: true, maxWords: 300,
+      keywords: ['hypothesis', 'hypotheses', 'objective', 'objectives', 'aim', 'aims', 'background', 'rationale', 'literature'],
+      description: 'Whether the hypotheses and objectives are reasonable and sound, and indicate that the applicant is familiar with the current literature.',
+      prompts: [
+        'Are the hypotheses stated clearly and are they testable with the proposed work?',
+        'Do the objectives follow from the hypotheses, and are they achievable within the project?',
+        'Does the background show command of the current literature, including work that cuts against the premise?',
+        'Are the key assumptions supported by prior evidence or preliminary data?',
+      ],
+    },
+    {
+      id: 'methods', name: 'Experimental Methods', short: 'Methods', group: 'core', bulleted: true, maxWords: 300,
+      keywords: ['method', 'methods', 'design', 'approach', 'experimental', 'analysis', 'statistic', 'ethics', 'ethical', 'rigour', 'rigor', 'animal', 'participants'],
+      description: 'Whether the experimental methods are appropriate, rigorous, ethical, and sufficient for testing the hypotheses and achieving the objectives.',
+      prompts: [
+        'Are the methods appropriate to each objective, and sufficient to test the hypotheses rather than merely describe?',
+        'Is rigour addressed: controls, blinding, randomisation, sample sizes with a power justification, sex of animals or participants, pre-specified analyses?',
+        'Are ethical considerations handled: approvals in place or planned, the three Rs for animal work, consent and safety for human work?',
+        'Are potential pitfalls identified with credible alternatives?',
+      ],
+    },
+    {
+      id: 'team', name: 'Team and Resources', short: 'Team', group: 'core', bulleted: true, maxWords: 300,
+      keywords: ['team', 'investigator', 'applicant', 'supervisor', 'expertise', 'skills', 'resources', 'facilities', 'timeframe', 'timeline', 'environment', 'institution'],
+      description: 'Whether the team have the necessary skills and expertise to complete the project in the proposed timeframe.',
+      prompts: [
+        'Does the team, including supervisors and collaborators, cover every method the project depends on?',
+        'Is the timeframe realistic for the work described, and does the plan sequence the objectives sensibly?',
+        'Are the facilities, equipment, animals, samples, or cohorts available, with letters where access depends on others?',
+        'For a scholarship or fellowship: is the supervision and training environment strong?',
+      ],
+    },
+    {
+      id: 'significance', name: 'Scientific and Clinical Significance', short: 'Significance', group: 'core', bulleted: true, maxWords: 300,
+      keywords: ['significance', 'impact', 'clinical', 'translation', 'patients', 'treatment', 'diagnosis', 'prognosis', 'prevention', 'management', 'nervous system', 'neurological'],
+      description: 'Whether the outcomes will contribute to our understanding of, prevention, diagnosis, prognosis, treatment, or management of diseases and disorders of the central and peripheral nervous systems.',
+      prompts: [
+        'Which disease or disorder of the central or peripheral nervous system does this address, and how directly?',
+        'Would the outcomes advance understanding, prevention, diagnosis, prognosis, treatment, or management, and how far along that path is this project?',
+        'Is the significance argued from the work itself rather than from the importance of the disease alone?',
+        'What is the most likely lasting contribution if the project succeeds?',
+      ],
+    },
+  ],
+  overall: {
+    label: 'Overall assessment',
+    description: 'Your own overall judgement of the proposed research. The portal scores the four points individually; this helps you keep those scores consistent with each other.',
+    scale: FIVE_POINT,
+  },
+  recommendations: ['Support', 'Support with reservations', 'Do not support'],
+  checklist: [
+    ...CORE_CHECKS,
+    { id: 'nervous', label: 'Relevance to a disease or disorder of the central or peripheral nervous system is explicit', category: 'science', patterns: [/nervous system/i, /neurolog/i, /brain|spinal|neuron|neuronal|glia|dementia|stroke|epilep|Parkinson|Alzheimer|multiple sclerosis|neuropath/i] },
+    { id: 'ethicsNz', label: 'Ethical approvals (animal or human) are in place or planned', category: 'compliance', patterns: [/ethic(s|al)? (approval|committee)/i, /\bAEC\b/, /\bHDEC\b/, /animal ethics/i, /informed consent/i] },
+    { id: 'timeframe', label: 'Timeframe and milestones are stated', category: 'feasibility', patterns: [/timeline|timeframe|milestone|Gantt|month \d|year \d/i] },
+    ...REVIEWER_CHECKS,
+  ],
+  guidance: [
+    'Review the Description of Proposed Research (about seven pages); the full application is available for information.',
+    'Score each of the four points individually and comment on each; every comment box holds 300 words.',
+    'The Foundation would appreciate at least 400 words in total across the four sections.',
+    'Complete the conflict-of-interest step in the portal even if unsure; the Foundation confirms whether a conflict exists.',
+    'Deadlines can be extended on request; contact research@neurological.org.nz for help with the portal.',
+  ],
+  expectedSections: ['Background', 'Hypothesis', 'Objectives', 'Aims', 'Design and Methods', 'Methods', 'Significance', 'Timeline', 'Budget', 'References', 'Team', 'Ethics'],
+};
+
 /* ---------- HDF (Hereditary Disease Foundation) ---------- */
 
 const HDF: Framework = {
@@ -1314,6 +1402,7 @@ export interface CustomFrameworkDef {
     scale?: ScaleDef;
     unscored?: boolean;
     maxChars?: number;
+    maxWords?: number;
   }[];
   criterionScale: ScaleDef;
   overall: { label: string; description: string; scale: ScaleDef };
@@ -1360,7 +1449,7 @@ export function frameworkToCustomDef(fw: Framework, id: string, name?: string): 
     name: name ?? `${fw.name} (copy)`,
     agency: fw.agency,
     blurb: fw.blurb,
-    criteria: fw.criteria.map((c) => ({ id: c.id, name: c.name, short: c.short, description: c.description, prompts: [...c.prompts], group: c.group, scale: c.scale, unscored: c.unscored, maxChars: c.maxChars })),
+    criteria: fw.criteria.map((c) => ({ id: c.id, name: c.name, short: c.short, description: c.description, prompts: [...c.prompts], group: c.group, scale: c.scale, unscored: c.unscored, maxChars: c.maxChars, maxWords: c.maxWords })),
     criterionScale: fw.criterionScale,
     overall: { ...fw.overall },
     recommendations: fw.recommendations ? [...fw.recommendations] : undefined,
@@ -1382,7 +1471,7 @@ export function allFrameworks(): Framework[] {
   return [...FRAMEWORKS, ...customFrameworks];
 }
 
-export const FRAMEWORKS: Framework[] = [NIH_2025, NIH_LEGACY, NSF, CIHR, ERC, HORIZON, NSERC, NHMRC, WELLCOME, UKRI, DFG, HDSA, HDF, GENERIC];
+export const FRAMEWORKS: Framework[] = [NIH_2025, NIH_LEGACY, NSF, CIHR, ERC, HORIZON, NSERC, NHMRC, WELLCOME, UKRI, DFG, HDSA, HDF, NEUROLOGICAL_NZ, GENERIC];
 
 export function getFramework(id: string): Framework {
   return FRAMEWORKS.find((f) => f.id === id) ?? customFrameworks.find((f) => f.id === id) ?? GENERIC;
@@ -1428,6 +1517,7 @@ export function detectFramework(text: string): string | undefined {
   const t = text.slice(0, 20000);
   // Named funders first: foundations often require NIH-style formatting, so
   // "Specific Aims" or a biosketch must not be mistaken for an NIH application.
+  if (/Neurological Foundation( of New Zealand)?|neurological\.org\.nz/i.test(t)) return 'neurological-nz';
   if (/Huntington'?s Disease Society of America|\bHDSA\b|Human Biology Project|Human Experience Project/i.test(t)) return 'hdsa';
   if (/Hereditary Disease Foundation|\bHDF\b/i.test(t)) return 'hdf';
   if (/Canadian Institutes of Health Research|\bCIHR\b|Foundation Grant|Nominated Principal Applicant/i.test(t)) return 'cihr-project';

@@ -235,7 +235,7 @@ function Bullets({ title, list }: { title: string; list: DraftBullet[] }) {
 }
 
 /** A preview heading with the box's character count against the funder's limit and a copy button for pasting into the form. */
-function BoxHead({ title, text, max }: { title: string; text: string; max?: number }) {
+function BoxHead({ title, text, max, maxWords }: { title: string; text: string; max?: number; maxWords?: number }) {
   const notify = useStore((s) => s.notify);
   const copy = async () => {
     const ok = await copyText(text);
@@ -245,7 +245,7 @@ function BoxHead({ title, text, max }: { title: string; text: string; max?: numb
     <div className="pv-head">
       <h2>{title}</h2>
       <span className="pv-tools">
-        <CharCount value={text} max={max} />
+        <CharCount value={text} max={max} maxWords={maxWords} />
         {text && (
           <button type="button" className="link" onClick={copy} title={`Copy this box as plain text`} aria-label={`Copy ${title}`}>
             <Copy size={12} /> Copy
@@ -291,7 +291,7 @@ export function DraftPreview({ includeConfidential, includeGuidance = false }: {
         .filter((s) => !s.empty || (includeGuidance && s.guide))
         .map((s) => (
           <section key={s.id}>
-            <BoxHead title={s.heading} text={sectionPlainText(s)} max={s.maxChars} />
+            <BoxHead title={s.heading} text={sectionPlainText(s)} max={s.maxChars} maxWords={s.maxWords} />
             {includeGuidance && s.guide && <Guide description={s.guide.description} prompts={s.guide.prompts} />}
             {s.scoreLine && <p className="pv-score">{s.scoreLine}</p>}
             {s.body && <p className="pv-body">{s.body}</p>}

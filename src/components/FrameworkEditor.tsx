@@ -359,6 +359,10 @@ export function FrameworkEditor() {
                           Character limit
                           <input type="number" min={0} step={100} value={c.maxChars ?? ''} placeholder="None" onChange={(e) => edit((d) => void (d.criteria[i].maxChars = e.target.value ? Math.max(0, Number(e.target.value)) || undefined : undefined))} aria-label="Character limit" />
                         </label>
+                        <label>
+                          Word limit
+                          <input type="number" min={0} step={50} value={c.maxWords ?? ''} placeholder="None" onChange={(e) => edit((d) => void (d.criteria[i].maxWords = e.target.value ? Math.max(0, Number(e.target.value)) || undefined : undefined))} aria-label="Word limit" />
+                        </label>
                       </div>
                       <label>
                         What it asks

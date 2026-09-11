@@ -123,3 +123,16 @@ describe('computeReadiness with a comment-only score sheet (HDSA)', () => {
     expect(r.ready).toBe(false);
   });
 });
+
+describe('word limits (Neurological Foundation NZ)', () => {
+  const nz = getFramework('neurological-nz');
+  it('blocks a section over its word limit and suggests reaching the minimum total', () => {
+    const many = Array.from({ length: 301 }, (_, i) => `w${i}`).join(' ');
+    const r = computeReadiness(newReview({ frameworkId: 'neurological-nz', scores: { hypothesis: { score: 4, comment: many }, methods: { score: 4, comment: 'Sound methods.' } } }), nz);
+    expect(r.blockers.find((b) => b.id === 'over-hypothesis')?.text).toBe('Hypothesis and Objectives is 1 word over the 300 limit');
+    expect(r.blockers.some((b) => b.id === 'over-methods')).toBe(false);
+    expect(r.suggestions.find((s) => s.id === 'min-words')?.text).toMatch(/you have 303$/);
+    const short = computeReadiness(newReview({ frameworkId: 'neurological-nz', scores: { hypothesis: { score: 4, comment: 'Reasonable and sound.' } } }), nz);
+    expect(short.suggestions.find((s) => s.id === 'min-words')?.text).toMatch(/at least 400 words across the criteria; you have 3/);
+  });
+});

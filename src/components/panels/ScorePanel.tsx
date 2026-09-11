@@ -220,9 +220,7 @@ function CriterionCard({ criterion: c, compact }: { criterion: Criterion; compac
       {!compact && (
         <div className="ta-foot">
           <DictateButton onText={(t) => set({ comment: score?.comment ? `${score.comment.replace(/\s+$/, '')} ${t}` : t.charAt(0).toUpperCase() + t.slice(1) })} />
-          {c.maxChars && (
-            <CharCount value={score?.comment ?? ''} max={c.maxChars} />
-          )}
+          {(c.maxChars || c.maxWords) && <CharCount value={score?.comment ?? ''} max={c.maxChars} maxWords={c.maxWords} />}
         </div>
       )}
       {!compact && (

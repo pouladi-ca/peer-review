@@ -110,7 +110,18 @@ export function computeReadiness(review: Review, fw: Framework, opts: ComposeOpt
   const overLimit = (id: string, label: string, over: number, max: number, tab: PanelTab) => {
     if (over > 0) blockers.push({ id: `over-${id}`, kind: 'blocker', text: `${label} is ${over.toLocaleString()} character${over === 1 ? '' : 's'} over the ${max.toLocaleString()} limit`, tab });
   };
-  for (const s of draft.sections) if (s.maxChars) overLimit(s.id, s.heading, overBy(sectionPlainText(s), s.maxChars), s.maxChars, 'score');
+  const words = (t: string) => (t.match(/\S+/g) ?? []).length;
+  for (const s of draft.sections) {
+    if (s.maxChars) overLimit(s.id, s.heading, overBy(sectionPlainText(s), s.maxChars), s.maxChars, 'score');
+    if (s.maxWords) {
+      const n = words(sectionPlainText(s));
+      if (n > s.maxWords) blockers.push({ id: `over-${s.id}`, kind: 'blocker', text: `${s.heading} is ${(n - s.maxWords).toLocaleString()} word${n - s.maxWords === 1 ? '' : 's'} over the ${s.maxWords} limit`, tab: 'score' });
+    }
+  }
+  if (fw.form?.minWordsTotal) {
+    const total = draft.sections.filter((s) => core.some((c) => c.id === s.id)).reduce((a, s) => a + words(sectionPlainText(s)), 0);
+    if (total < fw.form.minWordsTotal) suggestions.push({ id: 'min-words', kind: 'suggestion', text: `${fw.agency} asks for at least ${fw.form.minWordsTotal} words across the criteria; you have ${total}`, tab: 'score' });
+  }
   if (summarySpec.maxChars) overLimit('summary', summarySpec.label, overBy(review.draft.summary, summarySpec.maxChars), summarySpec.maxChars, 'draft');
   if (additionalSpec.maxChars) overLimit('additional', additionalSpec.label, overBy(review.draft.additional, additionalSpec.maxChars), additionalSpec.maxChars, 'draft');
   if (overallSpec.maxChars) overLimit('overall', overallSpec.label, overBy(review.overall.comment, overallSpec.maxChars), overallSpec.maxChars, 'score');

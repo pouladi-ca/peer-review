@@ -154,14 +154,19 @@ export function DictateButton({ onText, compact }: { onText: (text: string) => v
 }
 
 /** "1,234 / 2,000" for a box with a funder-imposed character limit; warns near the limit and flags overruns. */
-export function CharCount({ value, max, className = '' }: { value: string; max?: number; className?: string }) {
-  if (!max) return null;
-  const n = value.length;
-  const over = n - max;
-  const state = over > 0 ? 'is-over' : n >= max * 0.9 ? 'is-near' : '';
+export const wordCount = (s: string): number => (s.match(/\S+/g) ?? []).length;
+
+export function CharCount({ value, max, maxWords, className = '' }: { value: string; max?: number; maxWords?: number; className?: string }) {
+  if (!max && !maxWords) return null;
+  const words = !!maxWords;
+  const limit = words ? maxWords! : max!;
+  const n = words ? wordCount(value) : value.length;
+  const over = n - limit;
+  const state = over > 0 ? 'is-over' : n >= limit * 0.9 ? 'is-near' : '';
   return (
-    <span className={`charcount ${state} ${className}`} aria-live="polite" title={over > 0 ? `${over.toLocaleString()} over the limit` : `${(max - n).toLocaleString()} characters remaining`}>
-      {n.toLocaleString()} / {max.toLocaleString()}
+    <span className={`charcount ${state} ${className}`} aria-live="polite" title={over > 0 ? `${over.toLocaleString()} ${words ? 'words' : 'characters'} over the limit` : `${(limit - n).toLocaleString()} ${words ? 'words' : 'characters'} remaining`}>
+      {n.toLocaleString()} / {limit.toLocaleString()}
+      {words ? ' words' : ''}
       {over > 0 && <span className="charcount-over"> · {over.toLocaleString()} over</span>}
     </span>
   );
