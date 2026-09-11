@@ -520,6 +520,7 @@ button.chip:hover {
 }
 .review-card-main {
   flex: 1;
+  min-width: 0; /* let the text column shrink so a long title wraps instead of pushing the buttons out */
   display: flex;
   align-items: center;
   gap: 14px;
@@ -528,9 +529,13 @@ button.chip:hover {
   padding: 6px;
   text-align: left;
 }
+.review-card-text {
+  min-width: 0;
+}
 .review-card-title {
   font-weight: 600;
   font-size: 15px;
+  overflow-wrap: anywhere; /* file-name titles have no spaces to break at */
 }
 .review-card-meta {
   display: flex;

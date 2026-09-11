@@ -294,6 +294,11 @@ function loadExportPrefs(): ExportPrefs {
   return prefs;
 }
 
+/** A readable title from a file name: no extension, underscores and dots as spaces, runs of spaces collapsed. */
+export function titleFromFilename(name: string): string {
+  return name.replace(/\.pdf$/i, '').replace(/[_.]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Untitled review';
+}
+
 /** Wipe every locally cached review, file, and sync state on this device. */
 async function clearLocalData(): Promise<void> {
   await Promise.all([db.reviews.clear(), db.files.clear(), db.outbox.clear(), db.syncstate.clear(), db.settings.delete('sync.cursor'), db.settings.delete('customFrameworks'), db.settings.delete('frameworkPrefs'), db.settings.delete('userPhrases'), db.settings.delete('auth.email')]);
@@ -636,7 +641,7 @@ export const useStore = create<State>((set, get) => {
       set({ busy: 'Opening your PDF…' });
       const review = newReview({ frameworkId: opts.frameworkId ?? 'generic' });
       const first = files[0];
-      review.title = first.name.replace(/\.pdf$/i, '');
+      review.title = titleFromFilename(first.name);
       const initialTitle = review.title;
       const initialFramework = review.frameworkId;
       for (const [i, file] of files.entries()) {

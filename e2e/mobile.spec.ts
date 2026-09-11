@@ -12,6 +12,18 @@ test('the phone library is compact and never overflows', async ({ page }) => {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   await expect(page.getByRole('button', { name: 'Add a proposal PDF' })).toBeVisible();
+  // A file-name title with no spaces must wrap inside its card rather than push the actions off screen.
+  if ((await page.locator('.review-card').count()) > 0) {
+    await page.locator('.review-card-main').first().click();
+    await page.locator('.title-input').fill('Applicant_Name_Description_of_Proposed_Research_Final_Version_2026.pdf');
+    await page.getByRole('button', { name: 'Library' }).click();
+    await expect(page.locator('.library-main')).toBeVisible();
+    const card = page.locator('.review-card').first();
+    const archiveBtn = card.getByRole('button', { name: 'Archive review' });
+    const box = (await archiveBtn.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  }
   const account = page.getByRole('button', { name: /^Account:/ });
   await expect(account).toBeVisible();
   await page.screenshot({ path: path.join(shots, '19-phone-library.png') });

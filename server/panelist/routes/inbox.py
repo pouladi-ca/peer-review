@@ -120,7 +120,7 @@ async def inbox_post(request: Request, name: str = "application.pdf") -> dict[st
     tmp.replace(target)
 
     now = int(time.time() * 1000)
-    title = clean[:-4]
+    title = re.sub(r"\s+", " ", re.sub(r"[_.]+", " ", clean[:-4])).strip() or "Untitled review"
     meta = {"title": title, "frameworkId": "generic", "createdAt": now, "focusCriterionId": None}
     doc = {"id": doc_id, "name": clean, "size": size, "pages": 0, "addedAt": now, "role": "application"}
     with db.connect() as conn:
