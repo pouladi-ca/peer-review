@@ -5,7 +5,7 @@ import { claimsFromPages, claimsFromReflow } from '../../lib/analyze/claims';
 import { rectsForQuote } from '../../lib/reflow/locate';
 import { useStore, selectActiveDoc } from '../../lib/store';
 import { computeProgress } from '../../lib/progress';
-import { plural } from '../../lib/format';
+import { dueLabel, plural } from '../../lib/format';
 import type { QuickFacts } from '../../lib/types';
 import { ProgressRing } from '../ui';
 import { Scorecard } from '../Scorecard';
@@ -98,6 +98,15 @@ export function BriefPanel() {
             </div>
           ))}
         </dl>
+        <div className="due-row">
+          <label className="field-inline">
+            <span>Due</span>
+            <input type="date" value={review.dueDate ?? ''} aria-label="Due date" onChange={(e) => void useStore.getState().setReviewFields(review.id, { dueDate: e.target.value || null })} />
+          </label>
+          {review.dueDate && (
+            <span className={`due due-${dueLabel(review.dueDate).level}`}>{dueLabel(review.dueDate).text}</span>
+          )}
+        </div>
         <div className="stat-row">
           <span title="Pages across all documents">{plural(review.docs.reduce((a, d) => a + d.pages, 0), 'page')}</span>
           {totalWords > 0 && <span>{totalWords.toLocaleString()} words, about {readMinutes} min to read</span>}

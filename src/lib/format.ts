@@ -43,3 +43,32 @@ export function readingLabel(doc: { pdf?: { numPages: number }; progress: number
   if (!total) return 'Opening the PDF';
   return `Reading page ${Math.max(1, Math.round(doc.progress * total))} of ${total}`;
 }
+
+/** Today's date as YYYY-MM-DD in local time. */
+export function todayISO(now = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Whole days from today to a YYYY-MM-DD date, negative when past. */
+export function daysUntil(dueDate: string, now = new Date()): number {
+  const [y, m, d] = dueDate.split('-').map(Number);
+  const due = new Date(y, m - 1, d);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((due.getTime() - today.getTime()) / 86_400_000);
+}
+
+/** "Due today", "Due in 3 days", "Due 15 Oct", or "Overdue by 2 days", with an urgency level for styling. */
+export function dueLabel(dueDate: string, now = new Date()): { text: string; level: 'overdue' | 'soon' | 'later' } {
+  const days = daysUntil(dueDate, now);
+  if (days < 0) return { text: `Overdue by ${plural(-days, 'day')}`, level: 'overdue' };
+  if (days === 0) return { text: 'Due today', level: 'soon' };
+  if (days === 1) return { text: 'Due tomorrow', level: 'soon' };
+  if (days <= 7) return { text: `Due in ${days} days`, level: 'soon' };
+  const [y, m, d] = dueDate.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const sameYear = date.getFullYear() === now.getFullYear();
+  return { text: `Due ${date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) })}`, level: 'later' };
+}

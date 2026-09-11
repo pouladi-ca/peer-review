@@ -88,6 +88,10 @@ export interface Review {
   focusCriterionId?: string;
   /** Talking points and the discussion log for the panel meeting. */
   panel?: PanelNotes;
+  /** Set when the review is archived: out of the way, not deleted. */
+  archivedAt?: number;
+  /** The funder's deadline for this review, as a local calendar date (YYYY-MM-DD). */
+  dueDate?: string;
 }
 
 export interface DiscussionEntry {

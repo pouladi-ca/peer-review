@@ -1,18 +1,39 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
-import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw, Plus, ChevronDown, KeyRound, Users, UserRound, Send, Fingerprint } from 'lucide-react';
+import { FileUp, Sparkles, Trash2, Upload, Lock, Highlighter, ListChecks, FileOutput, LogOut, Cloud, CloudOff, RefreshCw, Plus, ChevronDown, KeyRound, Users, UserRound, Send, Fingerprint, Archive, ArchiveRestore, CalendarClock, X } from 'lucide-react';
 import { useIsPhone } from '../hooks/useMedia';
 import { useStore } from '../lib/store';
 import { getFramework } from '../lib/frameworks';
 import { FrameworkOptions } from './FrameworkOptions';
 import { computeProgress } from '../lib/progress';
-import { formatRelative, plural } from '../lib/format';
+import { dueLabel, formatRelative, plural } from '../lib/format';
+import type { Review } from '../lib/types';
 import { parseBackup } from '../lib/export/backup';
 import { ProgressRing, Wordmark } from './ui';
 
 const SAMPLE_URL = `${import.meta.env.BASE_URL}sample-application.pdf`;
 
 export function Library() {
-  const reviews = useStore((s) => s.reviews);
+  const allReviews = useStore((s) => s.reviews);
+  const [showArchived, setShowArchived] = useState(false);
+  const [sort, setSort] = useState<'recent' | 'due'>(() => {
+    try {
+      return localStorage.getItem('panelist.librarySort') === 'due' ? 'due' : 'recent';
+    } catch {
+      return 'recent';
+    }
+  });
+  const changeSort = (v: 'recent' | 'due') => {
+    setSort(v);
+    try {
+      localStorage.setItem('panelist.librarySort', v);
+    } catch {
+      /* ignore */
+    }
+  };
+  const byDue = (a: Review, b: Review) => (a.dueDate && b.dueDate ? a.dueDate.localeCompare(b.dueDate) : a.dueDate ? -1 : b.dueDate ? 1 : b.updatedAt - a.updatedAt);
+  const reviews = allReviews.filter((r) => !r.archivedAt).sort(sort === 'due' ? byDue : (a, b) => b.updatedAt - a.updatedAt);
+  const archived = allReviews.filter((r) => r.archivedAt).sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0));
+  const [dueEditId, setDueEditId] = useState<string | null>(null);
   const createReview = useStore((s) => s.createReview);
   const openReview = useStore((s) => s.openReview);
   const deleteReview = useStore((s) => s.deleteReview);
@@ -167,13 +188,26 @@ export function Library() {
           </div>
         </section>
 
-        {reviews.length > 0 && (
+        {(reviews.length > 0 || archived.length > 0) && (
           <section className="review-list">
-            <h2>Your reviews</h2>
+            <div className="review-list-head">
+              <h2>Your reviews</h2>
+              {reviews.length > 1 && (
+                <label className="field-inline review-sort">
+                  <span>Sort</span>
+                  <select value={sort} onChange={(e) => changeSort(e.target.value as 'recent' | 'due')} aria-label="Sort reviews">
+                    <option value="recent">Recently updated</option>
+                    <option value="due">Due date</option>
+                  </select>
+                </label>
+              )}
+            </div>
+            {reviews.length === 0 && <p className="muted">Nothing active. {archived.length > 0 ? 'Your archived reviews are below.' : ''}</p>}
             <ul>
               {reviews.map((r) => {
                 const fw = getFramework(r.frameworkId);
                 const progress = computeProgress(r, fw);
+                const due = r.dueDate ? dueLabel(r.dueDate) : null;
                 return (
                   <li key={r.id} className="review-card">
                     <button type="button" className="review-card-main" onClick={() => openReview(r.id)}>
@@ -182,11 +216,38 @@ export function Library() {
                         <div className="review-card-title">{r.title}</div>
                         <div className="review-card-meta">
                           <span className="badge">{fw.agency}</span>
+                          {due && <span className={`due due-${due.level}`}>{due.text}</span>}
                           <span>{plural(r.annotations.length, 'note')}</span>
                           <span>{plural(r.docs.reduce((a, d) => a + d.pages, 0), 'page')}</span>
                           <span>Updated {formatRelative(r.updatedAt)}</span>
                         </div>
                       </div>
+                    </button>
+                    {dueEditId === r.id ? (
+                      <span className="due-edit">
+                        <input
+                          type="date"
+                          value={r.dueDate ?? ''}
+                          aria-label="Due date"
+                          autoFocus
+                          onChange={(e) => void useStore.getState().setReviewFields(r.id, { dueDate: e.target.value || null })}
+                        />
+                        {r.dueDate && (
+                          <button type="button" className="btn btn-ghost btn-s" onClick={() => (void useStore.getState().setReviewFields(r.id, { dueDate: null }), setDueEditId(null))}>
+                            Clear
+                          </button>
+                        )}
+                        <button type="button" className="icon-btn" aria-label="Done" onClick={() => setDueEditId(null)}>
+                          <X size={14} />
+                        </button>
+                      </span>
+                    ) : (
+                      <button type="button" className="icon-btn" aria-label={r.dueDate ? 'Change due date' : 'Set due date'} title={r.dueDate ? 'Change the due date' : 'Set a due date'} onClick={() => setDueEditId(r.id)}>
+                        <CalendarClock size={15} />
+                      </button>
+                    )}
+                    <button type="button" className="icon-btn" aria-label="Archive review" title="Archive: out of the way, not deleted" onClick={() => void useStore.getState().setReviewFields(r.id, { archivedAt: Date.now() })}>
+                      <Archive size={15} />
                     </button>
                     {confirmId === r.id ? (
                       <div className="review-card-confirm">
@@ -207,6 +268,49 @@ export function Library() {
                 );
               })}
             </ul>
+            {archived.length > 0 && (
+              <div className="archived">
+                <button type="button" className="link archived-toggle" onClick={() => setShowArchived((v) => !v)} aria-expanded={showArchived}>
+                  <Archive size={13} /> Archived ({archived.length})
+                  <ChevronDown size={14} className={`chev ${showArchived ? 'is-open' : ''}`} />
+                </button>
+                {showArchived && (
+                  <ul>
+                    {archived.map((r) => (
+                      <li key={r.id} className="review-card is-archived">
+                        <button type="button" className="review-card-main" onClick={() => openReview(r.id)}>
+                          <div className="review-card-text">
+                            <div className="review-card-title">{r.title}</div>
+                            <div className="review-card-meta">
+                              <span className="badge">{getFramework(r.frameworkId).agency}</span>
+                              <span>Archived {formatRelative(r.archivedAt ?? 0)}</span>
+                            </div>
+                          </div>
+                        </button>
+                        <button type="button" className="icon-btn" aria-label="Unarchive review" title="Bring it back to your reviews" onClick={() => void useStore.getState().setReviewFields(r.id, { archivedAt: null })}>
+                          <ArchiveRestore size={15} />
+                        </button>
+                        {confirmId === r.id ? (
+                          <div className="review-card-confirm">
+                            <span>Delete this review and its PDFs?</span>
+                            <button type="button" className="btn btn-danger btn-s" onClick={() => deleteReview(r.id)}>
+                              Delete
+                            </button>
+                            <button type="button" className="btn btn-ghost btn-s" onClick={() => setConfirmId(null)}>
+                              Keep
+                            </button>
+                          </div>
+                        ) : (
+                          <button type="button" className="icon-btn" aria-label="Delete review" title="Delete review" onClick={() => setConfirmId(r.id)}>
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </section>
         )}
 

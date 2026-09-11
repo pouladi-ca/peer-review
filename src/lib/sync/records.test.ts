@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { Review } from '../types';
 import { produce } from 'immer';
 import { applyRecord, diffRecords, reviewToRecords, shouldApply } from './records';
 import { emptyReview } from './engine';
@@ -61,5 +62,20 @@ describe('shouldApply', () => {
     expect(shouldApply('ann:a1', 101, 100)).toBe(true);
     expect(shouldApply('ann:a1', 1, undefined)).toBe(true);
     expect(shouldApply('visited:d1', 1, 100)).toBe(true);
+  });
+});
+
+describe('meta record carries archive state and due date', () => {
+  it('round-trips both, and clears them when absent', () => {
+    const base: Review = { id: 'r', title: 'T', createdAt: 1, updatedAt: 1, frameworkId: 'generic', docs: [], annotations: [], scores: {}, overall: { comment: '' }, checklist: {}, draft: { summary: '', additional: '', confidential: '' }, facts: {}, visited: {}, lastPage: {}, activeMs: 0 };
+    const meta = reviewToRecords({ ...base, archivedAt: 123, dueDate: '2026-10-15' }).get('meta') as Record<string, unknown>;
+    expect(meta).toMatchObject({ archivedAt: 123, dueDate: '2026-10-15' });
+    const target = { ...base };
+    applyRecord(target, 'meta', meta, false);
+    expect(target.archivedAt).toBe(123);
+    expect(target.dueDate).toBe('2026-10-15');
+    applyRecord(target, 'meta', reviewToRecords(base).get('meta'), false);
+    expect(target.archivedAt).toBeUndefined();
+    expect(target.dueDate).toBeUndefined();
   });
 });

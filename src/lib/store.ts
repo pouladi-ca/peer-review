@@ -136,6 +136,8 @@ interface State {
   openReview(id: string): Promise<void>;
   closeReview(): void;
   deleteReview(id: string): Promise<void>;
+  /** Change a review's title-level fields whether or not it is open: archive state and due date. */
+  setReviewFields(id: string, patch: { archivedAt?: number | null; dueDate?: string | null }): Promise<void>;
   addDocument(file: File, role: DocRole): Promise<void>;
   removeDocument(docId: string): Promise<void>;
   setActiveDoc(docId: string): void;
@@ -722,6 +724,27 @@ export const useStore = create<State>((set, get) => {
       for (const d of Object.values(get().docs)) destroyPdf(d.pdf);
       set({ review: null, docs: {}, reflow: {}, figureViewer: null, activeDocId: null, selectedNoteId: null, editingNoteId: null, focusMode: false, saveState: 'idle', sheet: null });
       void loadReviewList(set);
+    },
+
+    async setReviewFields(id, patch) {
+      const apply = (r: Review) => {
+        if ('archivedAt' in patch) r.archivedAt = patch.archivedAt ?? undefined;
+        if ('dueDate' in patch) r.dueDate = patch.dueDate || undefined;
+      };
+      if (get().review?.id === id) {
+        get().update(apply);
+        set((s) => ({ reviews: s.reviews.map((r) => (r.id === id ? get().review! : r)) }));
+        return;
+      }
+      const prev = await db.reviews.get(id);
+      if (!prev) return;
+      const next = produce(prev, (draft) => {
+        apply(draft);
+        draft.updatedAt = Date.now();
+      });
+      await db.reviews.put(next);
+      set((s) => ({ reviews: s.reviews.map((r) => (r.id === id ? next : r)) }));
+      void ensureEngine().recordChanges(prev, next);
     },
 
     async deleteReview(id) {

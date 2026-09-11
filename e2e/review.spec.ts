@@ -532,3 +532,37 @@ test('the brief indexes preliminary-data claims and the reading view can read al
     await expect(page.locator('.read-content .is-speaking')).toHaveCount(0);
   }
 });
+
+test('reviews can carry a due date and be archived and brought back', async ({ page }) => {
+  await login(page);
+  // A fresh browser fills its library from sync; act only once that has settled.
+  await expect(page.locator('.library-tag .sync-state')).toContainText(/Synced/, { timeout: 30_000 });
+  if ((await page.locator('.review-card').count()) === 0) {
+    await page.getByRole('button', { name: 'Try a sample application', exact: true }).click();
+    await expect(page.locator('.pdf-canvas').first()).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Library' }).click();
+  }
+  const first = page.locator('.review-list > ul > li.review-card').first();
+  await first.getByRole('button', { name: 'Set due date' }).click();
+  const tomorrow = new Date(Date.now() + 86_400_000);
+  const iso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+  await first.locator('input[type="date"]').fill(iso);
+  await first.getByRole('button', { name: 'Done' }).click();
+  await expect(first.locator('.due')).toHaveText('Due tomorrow');
+  // Archive: it leaves the active list and appears under Archived; unarchive restores it.
+  const activeBefore = await page.locator('.review-list > ul > li.review-card').count();
+  await first.getByRole('button', { name: 'Archive review' }).click();
+  await expect(page.locator('.review-list > ul > li.review-card')).toHaveCount(activeBefore - 1);
+  await page.getByRole('button', { name: /Archived \(\d+\)/ }).click();
+  // The one archived just now is listed first; sync may have renamed it meanwhile, so do not match on the title.
+  const archivedCard = page.locator('.review-card.is-archived').first();
+  await expect(archivedCard).toBeVisible();
+  await expect(archivedCard).toContainText('Archived just now');
+  await archivedCard.getByRole('button', { name: 'Unarchive review' }).click();
+  await expect(page.locator('.review-list > ul > li.review-card')).toHaveCount(activeBefore);
+  // Clear the due date to leave things as they were: the restored card is the one carrying the chip.
+  const restored = page.locator('.review-list > ul > li.review-card', { has: page.locator('.due') }).first();
+  await restored.getByRole('button', { name: 'Change due date' }).click();
+  await restored.getByRole('button', { name: 'Clear' }).click();
+  await expect(restored.locator('.due')).toHaveCount(0);
+});

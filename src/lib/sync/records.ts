@@ -17,7 +17,7 @@ const stable = (v: unknown): string => JSON.stringify(v);
 /** Every record a review currently consists of. */
 export function reviewToRecords(r: Review): Map<string, unknown> {
   const m = new Map<string, unknown>();
-  m.set('meta', { title: r.title, frameworkId: r.frameworkId, createdAt: r.createdAt, focusCriterionId: r.focusCriterionId ?? null });
+  m.set('meta', { title: r.title, frameworkId: r.frameworkId, createdAt: r.createdAt, focusCriterionId: r.focusCriterionId ?? null, archivedAt: r.archivedAt ?? null, dueDate: r.dueDate ?? null });
   m.set('facts', r.facts);
   m.set('draft:summary', r.draft.summary);
   m.set('draft:additional', r.draft.additional);
@@ -63,11 +63,13 @@ export function applyRecord(r: Review, key: string, data: unknown, deleted: bool
   switch (kind) {
     case 'meta': {
       if (deleted) return;
-      const m = data as { title?: string; frameworkId?: string; createdAt?: number; focusCriterionId?: string | null };
+      const m = data as { title?: string; frameworkId?: string; createdAt?: number; focusCriterionId?: string | null; archivedAt?: number | null; dueDate?: string | null };
       if (typeof m.title === 'string') r.title = m.title;
       if (typeof m.frameworkId === 'string') r.frameworkId = m.frameworkId;
       if (typeof m.createdAt === 'number') r.createdAt = m.createdAt;
       r.focusCriterionId = m.focusCriterionId ?? undefined;
+      if ('archivedAt' in m) r.archivedAt = typeof m.archivedAt === 'number' ? m.archivedAt : undefined;
+      if ('dueDate' in m) r.dueDate = typeof m.dueDate === 'string' && m.dueDate ? m.dueDate : undefined;
       return;
     }
     case 'facts':

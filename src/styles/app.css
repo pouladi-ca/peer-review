@@ -4825,3 +4825,78 @@ mark.rhl.has-comment::after {
   align-self: flex-end;
   font-size: 12px;
 }
+
+/* ---------- due dates and archive ---------- */
+.review-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.review-list-head h2 {
+  margin: 0;
+}
+.review-sort select {
+  font-size: 12.5px;
+}
+.due {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+.due-soon {
+  background: color-mix(in srgb, var(--warning) 18%, var(--surface));
+  color: var(--warning);
+}
+.due-overdue {
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  color: var(--danger);
+}
+.due-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.due-edit input[type='date'] {
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.due-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 2px;
+}
+.due-row input[type='date'] {
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.archived {
+  margin-top: 14px;
+}
+.archived-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.archived ul {
+  margin-top: 8px;
+}
+.review-card.is-archived {
+  opacity: 0.8;
+}
+.review-card.is-archived .review-card-main {
+  padding-left: 6px;
+}
